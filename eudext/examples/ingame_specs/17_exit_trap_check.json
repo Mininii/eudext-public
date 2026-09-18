@@ -1,0 +1,50 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "17_exit_trap_check",
+ "title": "나가면 멈춤 — 실험 기능 (F19-4, 위험)",
+ "timeout_s": 300,
+ "items": [
+  {
+   "kind": "group",
+   "id": "F19-4",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m17.stage",
+     "min": 0
+    },
+    {
+     "kind": "wall",
+     "metric": "fps",
+     "min": 0.2
+    },
+    {
+     "kind": "hdr",
+     "field": "local_player",
+     "max": 131
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "hdr:seq 증가 + wall (2초 이상 seq 정지 = 멈춤, 블록 사라짐 = 게임 종료/튕김) (P2 PC 리더 — 살아남은 쪽)"
+    ],
+    "expect": "P1 이 나갈 때 P1 의 스타가 멈춤(사람), P2 PC 는 seq 계속(자동)",
+    "done_marker": "P1 퇴장 뒤 30초",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "17 exit_trap_check",
+    "bundle": "17 exit_trap (위험, 2인)",
+    "risk": "실험 기능 — 로컬 트리거 목록을 자기 순환으로 바꿈. 목록 주인을 잘못 고르면 전원 멈춤, 강제 종료 필요",
+    "extra": [
+     "MULTI",
+     "AUTO"
+    ],
+    "instrument": "없음"
+   }
+  }
+ ],
+ "stall_s": 30
+}

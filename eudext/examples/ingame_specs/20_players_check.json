@@ -1,0 +1,109 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "20_players_check",
+ "title": "관전자·CP·사람 판정 (B8 — 각 PC 에서 리더 실행)",
+ "timeout_s": 300,
+ "items": [
+  {
+   "kind": "group",
+   "id": "B8-1",
+   "items": [
+    {
+     "kind": "hdr",
+     "field": "local_player",
+     "max": 131
+    },
+    {
+     "kind": "mark",
+     "name": "m20.contains_obs",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "hdr local_player (각 PC 에서 리더 실행 — 관전자 PC 는 128~131)",
+     "watch m20.contains_obs (contains_user(Observers) 결과)"
+    ],
+    "expect": "관전자 PC local_player ∈ 128~131(슬롯마다 다름), 플레이어 PC 0~7, contains_obs 는 관전자 PC 에서만 1",
+    "done_marker": "frame >= 48",
+    "category": "MULTI",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "20 players_check",
+    "bundle": "M1_multi",
+    "notes": "관전자 PC 에도 리더를 켜면 판정은 자동(LAN 만)",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "players_example.eps: contains_user 결과를 로컬 변수로 dbg.watch (표시 전용 — 공유 로직에 안 씀)"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "B8-5",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m20.is_human1",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m20.human_mask",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m20.is_human1, m20.human_mask",
+     "peek 0x57F0F0:8 (나간 플레이어 광물 증가 여부)"
+    ],
+    "expect": "한 명이 나간 뒤 is_human(1)=0, human_mask 에서 비트 빠짐, 나간 플레이어 광물 증가 없음",
+    "done_marker": "사람이 나간 뒤 5초",
+    "category": "MULTI",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "20 players_check",
+    "bundle": "M1_multi",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "players_example.eps 값 dbg.watch"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "B8-8",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m20.contains_all",
+     "equals": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m20.contains_all (각 PC)"
+    ],
+    "expect": "사람 슬롯 0·2·3 처럼 띄운 방에서 모든 PC·관전자에서 contains_user(Everyone)=1",
+    "done_marker": "frame >= 48",
+    "category": "MULTI",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "20 players_check",
+    "bundle": "M1_multi",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "contains_user(Everyone) 결과를 로컬 변수로 dbg.watch"
+   }
+  }
+ ],
+ "done": [
+  "done"
+ ]
+}

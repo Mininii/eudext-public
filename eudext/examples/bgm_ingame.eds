@@ -1,0 +1,37 @@
+:: eudext.bgm 인게임 확인 맵 빌드 설정 (docs/INGAME_CHECKLIST.md D16-*, euddraft 0.11.0.1)
+:: 소리 파일이 저장소에 없으므로 빌드 도우미로 빌드한다:
+::   python eudext/examples/bgm_ingame_build.py --work <작업 폴더> [--ogg <진짜 .ogg 파일>]
+:: 도우미는 소리를 합성하고, 아래 [MSQC] 줄이 bgm_ingame.eps 의 선언과 같은지 확인한 뒤(sync.collect) 빌드한다.
+:: 선언(bus.value/key_down)을 고치면 도우미가 알려 주는 줄로 [MSQC] 를 고친다.
+:: eds 줄에는 끝 주석을 달 수 없다. 주석 줄은 '::' 로 시작한다. 경로는 '/' 로 쓴다.
+
+[main]
+input : ../testing/base_multi.scx
+output : bgm_ingame_out.scx
+
+[../boot.py]
+EudextRoot : ../..
+Preload : dbg, bgm
+
+[MSQC]
+QCUnit : 49
+QCDebug : false
+Always(); val, eudext_bgmi_s1 : eudext_bgmi_v2
+NotTyping; KeyDown(N) : eudext_bgmi_p3, 1
+NotTyping; KeyDown(M) : eudext_bgmi_p4, 1
+NotTyping; KeyDown(B) : eudext_bgmi_p5, 1
+
+[dbg_setup.py]
+WatchSlots : 64
+Probes : 128
+
+[bgm_ingame.eps]
+
+:: [eudTurbo] = euddraft 0.11 번들 플러그인 (afterTriggerExec 에서 0x6509A0 = 0) — 트리거를 매 프레임 돌게 한다.
+:: 인게임 G-1(2026-09-18): 터보가 없으면 한 사이클이 약 28~30프레임(1.2초)이라 맵의 프레임 수가 30배 늦게 간다.
+:: eudext 모듈·확인 맵은 모두 "한 사이클 = 한 프레임"(사용자 맵의 CtrigAsm EUDTurbo 와 같은 상태)을 전제한다.
+
+[eudTurbo]
+
+[freeze]
+freeze : 0

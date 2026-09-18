@@ -1,0 +1,50 @@
+// eudext.spawn 예제 — DESIGN 4.14 (G_CB 식 소환 대기열)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/spawn_example.eds --work <작업 폴더>
+// 여러 층은 사슬 API `sp.job(…).layer(…).layer(…).push()` 로 쓴다(epScript 의 [a, b] 는 EUDArray 가 된다).
+// 명령 속성은 모듈 함수 spawn.attack/patrol/move(…) 로 만든다(spawn.Order.attack 사슬은 번역되지 않는다).
+// rtype_func 에 넘기는 epScript 함수는 **그 호출보다 앞에** 정의한다(뒤에 있으면 "Undefined rvalue").
+import eudext.shape as shape;
+import eudext.spawn as spawn;
+
+const cx = shape.CX(seed=1234);
+const ring = cx.call("CSMakeCircle", 6, 32, 0, 19, 0);                       // 19점 (반지름 32·64)
+const star = cx.eval("CSMakeStar(5, 96, 48, 0, CS_Level('Star', 5, 2), 0)");  // 별
+const fade = ring.sweep("right", px_per_cycle=32);                           // 왼→오 한 열씩 (LoopMax 스케줄)
+// 26 = 기준 맵의 빈 로케이션(소환 자리 — 점마다 옮겨짐), 27 = 명령 목표 상자, 13 = 맵 가운데(기본 명령 목표)
+const sp = spawn.Spawner(capacity=16, loc=26, loc2=27, default_target=13);
+
+var frame, homes, boss, live, ovf;
+
+function CountHome(epd, unit, owner, x, y) { homes += 1; }
+function CountBoss(epd, unit, owner, x, y) {
+    boss += 1;
+    sp.ctx.set_remove_timer(240);                     // 핸들러 안에서 SpawnCtx 동작 (약 10초 뒤 사라짐)
+}
+
+function onPluginStart() {
+    sp.rtype_func("Home", sp.builtin.attack_default, CountHome);   // 내장 핸들러 + 사용자 함수 차례로
+    sp.rtype_func("Boss", CountBoss);
+    sp.rtype("Nothing");
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        sp.anchor.x = 1024;                           // 중심 생략 = 넣는 순간의 anchor (원본 G_CB_X/Y)
+        sp.anchor.y = 1024;
+        // 2층: 원(저글링) → 빈 프레임 1개 → 별(히드라, 150%). 둘 다 기본 어택(로케이션 13)
+        sp.job(owner=P8, rtype="Home").layer(37, ring).layer(38, star, size=150).push();
+        // 페이드 원(울트라), 명령 속성: 로케이션 13 으로 어택 (넣는 순간의 중심)
+        sp.push(39, fade, owner=P8, center=list(2048, 1024), rtype="Nothing", order=spawn.attack(13));
+    }
+    if (frame == 5) {
+        // 전역 회전 원: 사이클마다 4점, 2프레임 간격. 각은 점마다 sp.rotation 을 읽는다
+        sp.push(40, ring, owner=P8, center=13, rotate=sp.GLOBAL, lm=4, delay=2);
+        sp.spawn_now(68, count=1, owner=P8, at="Location 13", rtype="Boss");   // f_TempRepeat 대체
+        sp.scan_effect(ring, 429, color=16, center=list(1500, 1500));           // G_CB_TScanEff 대체 (주인 P8)
+    }
+    sp.rotation += 15;
+    sp.tick();
+    live = sp.live;
+    ovf = sp.overflow;
+}

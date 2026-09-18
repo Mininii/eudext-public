@@ -1,0 +1,8 @@
+[main]
+input: build\base.scx
+output: build\S8_SubtractTest.scx
+
+[s8_ingame.py]
+
+[freeze]
+freeze : 0

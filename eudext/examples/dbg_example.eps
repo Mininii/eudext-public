@@ -1,0 +1,59 @@
+// eudext dbg 예제 (epScript) — 디버그 브리지 블록 (DESIGN 4.21, 인게임 G-1·G-2)
+//
+//   dbg.setup(map_name=…)          맨 먼저 (모듈 전역 const). 블록은 void 맨 위 0x596280 (기본 용량)
+//   dbg.watch(이름, 값)             변수·Int64·상수 주소를 매 프레임 블록에 복사
+//   dbg.snapshot_text(이름, 버퍼, n) 글 버퍼 n dword 를 매 프레임 복사 (리더가 글로 풀어 보임)
+//   dbg.hit(이름) / dbg.probe(이름)  지날 때마다 +1 (probe 는 액션)
+//   dbg.check(이름, 조건)            판정 카운터 (통과·전체)
+//   dbg.result(이름, 통과, 전체)      맵이 센 점검 결과 보고
+//   dbg.suite_begin/suite_end       점검 단계 — 멈추거나 튕기면 어느 단계 도중인지 남는다
+//   dbg.mark("done")                완료 표식 — 자동 판정(tools/ingame_auto.py)이 이것을 기다린다
+//
+// 게임 중 확인: python eudext\tools\debugbridge\dbg_reader.py --once
+// 자동 판정:   python eudext\tools\ingame_auto.py --specs eudext\examples\dbg_example_spec.json
+// 모듈 함수는 f_ 로 번역된다(dbg.watch → dbg.f_watch). 클래스·메서드는 그대로.
+import eudext.dbg as dbg;
+import eudext.i64 as i64;
+
+const bridge = dbg.setup(map_name="dbg_example");
+
+var frame;
+var sec;
+const big = i64.Int64(0);
+const sb = StringBuffer(64);
+
+const w1 = dbg.watch("frame", frame);
+const w2 = dbg.watch("sec", sec);
+const w3 = dbg.watch("big", big);
+const w4 = dbg.watch("elapsed", 0x57F23C);
+const w5 = dbg.snapshot_text("line", sb, 16);
+
+function afterTriggerExec() {
+    frame += 1;
+    dbg.hit("tick");
+    big.v += 1000000000;                     // 10억씩 — 5프레임째에 32비트를 넘는다
+    if (frame % 24 == 0) {
+        sec += 1;
+        sb.printf("eudext dbg {} sec", sec);  // 글 스냅숏에 보인다
+        DoActions(dbg.probe("second"));
+    }
+    if (frame == 24) {
+        dbg.suite_begin("g1", phase=1);
+        dbg.check("g1.frame", frame == 24);
+        dbg.check("g1.big", big >= 0x500000000);
+        dbg.suite_end("g1");
+    }
+    if (frame == 48) {
+        dbg.suite_begin("g2", phase=2);
+    }
+    if (frame == 72) {
+        dbg.check("g2.sec", sec == 3);
+        dbg.suite_end("g2", sec == 3);
+    }
+    if (frame == 96) {
+        dbg.result("g.total", 3, 3);
+        dbg.mark("done");
+        DisplayTextAll("\x04[G-1] eudext dbg 예제 끝 — dbg_reader.py --once 로 확인하세요");
+        setcurpl2cpcache();
+    }
+}

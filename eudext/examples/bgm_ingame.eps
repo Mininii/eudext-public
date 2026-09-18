@@ -1,0 +1,129 @@
+// eudext.bgm 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 D16-* 항목 (S5 B.11)
+// 빌드: python eudext/examples/bgm_ingame_build.py --work <작업 폴더> [--ogg <진짜 .ogg 파일>]
+//   소리 파일을 합성해 이 파일 옆 bgm_ingame_snd 폴더에 두고, eds 의 [MSQC] 줄이 아래 선언과 같은지 확인한 뒤 빌드한다.
+//   (저장소에는 소리 파일이 없다. --ogg 를 주면 그 파일을 d16_ogg_as.wav 이름으로 넣는다 — D16-6)
+// 기준 맵 testing/base_multi.scx (P1~P4 사람). 혼자 열어도 D16-1·2·3·5·6·8·9 를 볼 수 있다.
+// D16-4 는 관전자로 들어간 PC, D16-7 은 2인 이상(가능하면 배틀넷)에서 본다.
+// 시각은 게임 속도 '가장 빠름'(1프레임 42ms) 기준이다. 화면 줄머리 [D16-번호] 가 체크리스트 항목이다.
+import eudext.bgm as bgm;
+import eudext.dbg as dbg;
+import eudext.sync as sync;
+import eudext.local as local;
+import eudext.players as pl;
+
+// --- 곡 표 (모듈 최상위 — 선언 수집과 euddraft 빌드에서 같은 순서로 실행된다) ---
+const _dir = bgm.set_dir("bgm_ingame_snd");
+const A = bgm.track("d16_a.wav");                                  // 440Hz 1.2초
+const B = bgm.track("d16_b.wav");                                  // 660Hz 1.2초
+const C = bgm.track("d16_c.wav");                                  // 880Hz 1.2초
+const SWEEP = bgm.chunks("d16_sweep_{:02d}.wav", 1, 25);           // 300→900Hz 6초를 250ms × 24 조각 (위상이 이어짐)
+const SYNCS = bgm.chunks("d16_sync_{:02d}.wav", 1, 21);            // 음 20개 × 500ms
+const NOFILE = bgm.track("d16_nofile.wav", length_ms=1000, add=False);   // MPQ 에 없는 이름 (D16-5)
+const OGGAS = bgm.track("d16_ogg_as.wav");                         // 확장자만 .wav 인 Ogg (D16-6)
+const SKIP = bgm.track("d16_skip.wav");                            // 짧은 딸깍 (동기 재생기의 버림 알림)
+const BEEP1 = bgm.track("d16_beep_1.wav");
+const BEEP2 = bgm.track("d16_beep_2.wav");
+const BEEP3 = bgm.track("d16_beep_3.wav");
+const BEEP4 = bgm.track("d16_beep_4.wav");
+const BEEP5 = bgm.track("d16_beep_5.wav");
+const BEEP6 = bgm.track("d16_beep_6.wav");
+const BEEP7 = bgm.track("d16_beep_7.wav");
+const BEEP8 = bgm.track("d16_beep_8.wav");
+const LOADS = bgm.chunks("d16_load_{:03d}.wav", 1, 301);           // 20ms 무음 300개 — 로딩 시간 (D16-9)
+
+// --- 재생기 ---
+const pa = bgm.Player(mode="local", targets="all", busy="replace");                   // switch 방식, PlayWAV×2
+const pb = bgm.Player(mode="local", targets="all", busy="replace", method="patch");   // 문자열 칸 채우기 (D18)
+const pc = bgm.Player(mode="local", targets="all", busy="replace", repeat=1);         // PlayWAV×1
+const pd = bgm.Player(mode="local", targets="all", busy="replace");                   // 조각, 보정 없음
+const pe = bgm.Player(mode="local", targets="all", busy="replace", lead_ms=-42);      // 조각, −42ms (bgmplayer)
+const pm = bgm.Player(mode="local", targets="all", busy="drop", busy_sound="staredit\\wav\\d16_missing.wav");
+
+// --- 동기 재생기 (D16-4·7): MSQC 로 방장 경과 시간과 키를 보낸다 ---
+const bus = sync.Bus("msqc", qc_unit=49, debug=0, name="bgmi");   // 49: 이 맵에서 쓰지 않는 유닛
+const el = bus.value(bgm.clock.local_dt(), latch=True);
+const keyN = bus.key_down("N", guard=sync.not_typing());
+const keyM = bus.key_down("M", guard=sync.not_typing());
+const keyB = bus.key_down("B", guard=sync.not_typing());
+const player_s = bgm.Player(mode="synced", targets="humans", elapsed=el, busy="drop", busy_sound=SKIP);
+const mutes = PVariable();
+var frame, step, every;
+const wStep = dbg.watch("m11.step", step);            // ①~⑩ 어디까지 갔는가 (D16-5 에서 멈추면 여기서 멈춘다)
+const wFrame = dbg.watch("m11.frame", frame);
+// 음소거 비트(D16-4)는 M 키를 누른 자리에서 표식으로 남긴다
+
+function beforeTriggerExec() {
+    sync.update();                                  // 걸쇠 갱신 (MSQC 수신 뒤, 재생기 앞)
+    pa.tick();
+    pb.tick();
+    pc.tick();
+    pd.tick();
+    pe.tick();
+    pm.tick();
+    player_s.tick();
+    foreach(p : pl.humans()) {                      // 공유 입력 → 공유 동작 (모든 PC 가 같게)
+        if (keyN.pulse(p)) { player_s.request(SYNCS); }
+        if (keyB.pulse(p)) { player_s.stop(); }
+        if (keyM.pulse(p)) {
+            if (mutes[p] == 0) { mutes[p] = 1; player_s.mute(p, 1); }
+            else { mutes[p] = 0; player_s.mute(p, 0); }
+            dbg.mark("m11.mute", mutes[p]);
+        }
+    }
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) { pl.run_as(pl.Everyone, DisplayText("\x1f[D16-9] eudext.bgm 확인 맵 — 소리 파일 약 370개. 맵 로딩에 걸린 시간을 알려 주세요")); }
+    if (frame == 24) { step += 1; pa.request(A); pl.run_as(pl.Everyone, DisplayText("\x07[D16-1] ① 낮은 음(440Hz, 스위치 방식)")); }
+    if (frame == 96) {
+        step += 1; pb.request(B);
+        pl.run_as(pl.Everyone, DisplayText("\x07[D16-1] ② 높은 음(660Hz, 문자열 칸 채우기) — ①과 다른 음이 들리면 정상 [필수]"));
+    }
+    if (frame == 168) { step += 1; pc.request(C); pl.run_as(pl.Everyone, DisplayText("\x07[D16-2] ③ 880Hz 를 PlayWAV 1번")); }
+    if (frame == 216) { step += 1; pa.request(C); pl.run_as(pl.Everyone, DisplayText("\x07[D16-2] ④ 같은 음을 PlayWAV 2번 — ③과 크기·빠짐이 다른지")); }
+    if (frame == 288) {
+        step += 1; pd.request(SWEEP);
+        pl.run_as(pl.Everyone, DisplayText("\x07[D16-3] ⑤ 스윕 24조각(보정 0) — 조각 사이 틈·딸깍 소리가 있는지 [필수]. 도중에 F10 으로 멈췄다 풀어 보기"));
+    }
+    if (frame == 456) { step += 1; pe.request(SWEEP); pl.run_as(pl.Everyone, DisplayText("\x07[D16-3] ⑥ 같은 스윕(−42ms 보정) — ⑤와 비교")); }
+    if (frame == 624) { step += 1; pm.request(NOFILE); pl.run_as(pl.Everyone, DisplayText("\x07[D16-5] ⑦ MPQ 에 없는 파일 PlayWAV — 소리 없이 계속되면 정상")); }
+    if (frame == 656) { step += 1; pm.request(A); }
+    if (frame == 670) {
+        step += 1; pm.request(C);
+        pl.run_as(pl.Everyone, DisplayText("\x07[D16-5] ⑧ 재생 중 요청 → 없는 알림 소리(d16_missing) — 멈추지 않고 ① 음이 끝까지 나면 정상"));
+    }
+    if (frame == 720) { step += 1; pa.request(OGGAS); pl.run_as(pl.Everyone, DisplayText("\x07[D16-6] ⑨ 확장자만 .wav 인 Ogg (빌드 때 --ogg 를 줬을 때만)")); }
+    if (frame == 900) { dbg.mark("m11.step_end", step); dbg.mark("done"); }
+    if (frame == 800) {
+        step += 1; pd.request(SWEEP);
+        pl.play_wav(pl.Everyone, "staredit\\wav\\d16_beep_1.wav");
+        pl.play_wav(pl.Everyone, "staredit\\wav\\d16_beep_2.wav");
+        pl.play_wav(pl.Everyone, "staredit\\wav\\d16_beep_3.wav");
+        pl.play_wav(pl.Everyone, "staredit\\wav\\d16_beep_4.wav");
+        pl.play_wav(pl.Everyone, "staredit\\wav\\d16_beep_5.wav");
+        pl.play_wav(pl.Everyone, "staredit\\wav\\d16_beep_6.wav");
+        pl.play_wav(pl.Everyone, "staredit\\wav\\d16_beep_7.wav");
+        pl.play_wav(pl.Everyone, "staredit\\wav\\d16_beep_8.wav");
+        pl.run_as(pl.Everyone, DisplayText("\x07[D16-8] ⑩ 스윕 + 효과음 8개 동시 — 효과음이 몇 개 들리는지(낮은 음부터 8단)"));
+    }
+    if (frame == 960) {
+        step += 1;
+        pl.run_as(pl.Everyone, DisplayText("\x07[D16-7] N: 동기 곡(20음) · M: 내 소리 끄기/켜기 · B: 정지 — 두 PC 의 조각 번호가 같게 오르는지, 방장이 나가도 계속되는지"));
+        pl.run_as(pl.Everyone, DisplayText("\x07[D16-4] 관전자 PC: 이 PC 번호(128~131)와 소리가 들리는지, DELETE 로 끄고 켜지는지"));
+    }
+    every += 1;
+    if (every >= 24) {                               // 약 1초마다 상태 줄 (표시 전용)
+        every = 0;
+        local.begin();
+        if (frame >= 288 && frame < 620) {
+            printAll("[D16-3] 조각 {} (보정 0) / {} (−42) · dt {} ms", pd.chunk(), pe.chunk(), pd.last_dt());
+        }
+        if (frame >= 960) {
+            const me = local.player();
+            printAll("[D16-4/7] 이 PC {} · 동기 곡 {} 조각 {} 남은 {} · dt {}", me, player_s.current(me),
+                player_s.chunk(me), player_s.remaining(me), player_s.last_dt());
+        }
+        local.end();
+    }
+}

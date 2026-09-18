@@ -1,0 +1,190 @@
+// eudext.spawn 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 E12-* (WP12 spawn, S1 9.4)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/spawn_ingame.eds --work <작업 폴더>
+// StarCraft: Remastered 에서 혼자(P1) 연다. 기준 맵 testing/base.scx 는 P1 사람·P2 컴퓨터라 소환 주인은 **P2**(적)다
+// (원본 theSeed·Stella 는 P6~P8 — 이 맵에는 그 슬롯이 없다). P2 유닛이 보이도록 처음에 P1 맵 리빌러 121개를 격자로 깐다
+// (그 자체가 경계 검사 확인: 12×12 격자 중 맵 밖 23점은 건너뛴다).
+// 줄머리 [E12-n] 이 체크리스트 항목이다. 모양·순서·움직임을 사진·영상이나 글로 알려 주면 된다.
+// 로케이션(기준 맵): 8 = (2048, 1365) 위 가운데, 12 = (1365, 2048), 13 = (2048, 2048) 가운데, 14 = (2731, 2048),
+//                   15 = (3413, 2048) 오른쪽, 16 = (683, 2731), 18 = (2048, 2731), 23 = (2048, 3413) 아래 가운데 = "본진"
+// 26·27 은 소환기가 점마다 옮기는 로케이션이다.
+import eudext.shape as shape;
+import eudext.spawn as spawn;
+
+const cx = shape.CX(seed=1234);
+const _grid = cx.run("function EudextGrid(N, S, O) local P = {} for i = 0, N - 1 do for j = 0, N - 1 do P[#P + 1] = {O + S * i, O + S * j} end end local R = {#P} for k, v in ipairs(P) do R[k + 1] = v end return R end");
+const grid = cx.call("EudextGrid", 12, 360, 180);                                          // 144점 (맵 안 121)
+const hatch = cx.eval("CSMakePolygon(4, 32, 0, CS_Level('Polygon', 4, 5), 0)");            // 41점 (theSeed SHBcI 자리)
+const bhRing = cx.eval("CSMakeCircle(6, 24, 0, CS_Level('Circle', 6, 6), CS_Level('Circle', 6, 4))");
+const bhCore = cx.eval("CSMakeCircle(6, 24, 0, CS_Level('Circle', 6, 3), 0)");
+const bh = cx.call("CS_OverlapX", cx.call("CS_MoveXY", bhRing, -200, 0), cx.call("CS_MoveXY", bhCore, 200, 0));   // 73점
+const bhFade = bh.sweep("right", px_per_cycle=32);                                           // 18열 (가운데 6열은 빈 열)
+const warp = cx.eval("CS_Rotate(CSMakePolygonX(4, 64, 45, CS_Level('PolygonX', 4, 3), 0), 90 - 26.57)");   // Stella SH_Warp 36점
+const ray = cx.call("CSMakeLine", 1, 32, 0, 11, 1);                                         // 12시 방향 10점
+const marker = cx.call("CSMakeLine", 2, 48, 90, 5, 0);                                      // 가로 5점
+const ring = cx.call("CSMakeCircle", 6, 32, 0, 19, 0);                                      // 19점
+
+const sp = spawn.Spawner(capacity=64, loc=26, loc2=27, default_target=23, default_owner=P2, debug=True);
+
+// 시험(tests/t_spawn.py)이 읽는 값
+const U_LING = 37;
+const U_HYDRA = 38;
+const U_OBS = 84;
+const U_BOSS = 29;            // Norad II (Battlecruiser)
+const U_MARK = 77;            // Fenix (Zealot)
+const WARP_UNITS = list(8, 12, 2, 3);
+const P1_FRAME = 24;
+const P1A = list(4050, 1200);  // 오른쪽 끝
+const P1B = list(1500, 4050);  // 아래쪽 끝
+const PH2 = 360;
+const PH3 = 600;
+const PH4 = 780;
+const PH5 = 860;
+const PH6 = 920;
+const PH7 = 1000;
+const TOTAL_FRAMES = 1005;
+const LAST_PHASE = 7;
+const CHECKS = 11;
+const N1 = sp.preview_count(hatch, center=list(4050, 1200));
+const N2 = sp.preview_count(hatch, center=list(1500, 4050));
+const NBH = sp.preview_count(bh, center=list(2048, 2048));
+
+var frame, phase, checks, good;
+var homes, vis, parked, marks, boss, w8, w12, w2, w3;
+
+function check(ok) {
+    checks += 1;
+    if (ok) { good += 1; }
+    else { printAll("\x08[E12] 점검 {} 다름 (프레임 {})", checks, frame); }
+}
+
+function CountHome(epd, unit, owner, x, y) { homes += 1; }
+function CountVis(epd, unit, owner, x, y) { vis += 1; }
+function Park(epd, unit, owner, x, y) {
+    parked += 1;
+    sp.ctx.set_invincible();                         // 무적으로 제자리 (명령 없음) — 나중에 트리거로 풀어 준다
+}
+function WarpSeen(epd, unit, owner, x, y) {
+    if (unit == 8 && w8 == 0) { w8 = frame; }
+    if (unit == 12 && w12 == 0) { w12 = frame; }
+    if (unit == 2 && w2 == 0) { w2 = frame; }
+    if (unit == 3 && w3 == 0) { w3 = frame; }
+}
+function CountMark(epd, unit, owner, x, y) { marks += 1; }
+function CountBoss(epd, unit, owner, x, y) { boss += 1; }
+
+function onPluginStart() {
+    sp.rtype("Nothing");
+    sp.rtype_func("Home", sp.builtin.attack_default, CountHome);
+    sp.rtype_func("Vis", sp.builtin.vision, CountVis);
+    sp.rtype_func("Park", Park);
+    sp.rtype_func("Warp", WarpSeen);
+    sp.rtype_func("Mark", CountMark);
+    sp.rtype_func("Boss", CountBoss);
+    sp.rtype("Skill", sp.builtin.skill_unit);
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        phase = 1;
+        setcurpl(0);
+        CenterView("Location 13");
+        sp.push(101, grid, owner=P1, center=list(0, 0), rtype="Nothing");     // P1 맵 리빌러 121개 (시야)
+        printAll("\x07[E12-0] eudext.spawn 확인 맵 — 적은 P2(주황). 약 42초 동안 단계 7개. 화면을 움직여 봐도 된다");
+    }
+    // ---------------------------------------------------------------- E12-1 해처리 건작 (S1 9.4-1)
+    if (frame == P1_FRAME) {
+        sp.anchor.x = 4050;                          // 부순 건물 자리 = anchor (원본 G_CB_X/Y)
+        sp.anchor.y = 1200;
+        sp.push(U_LING, hatch, rtype="Home");
+        printAll("\x07[E12-1] 오른쪽 끝(4050, 1200)과 아래 끝(1500, 4050)에 저글링 네모 모양 — {}마리·{}마리 (41점 중 맵 밖 점은 빠짐, 기대)", N1, N2);
+        printAll("\x07[E12-1] 모두 본진(로케이션 23, 아래 가운데 (2048, 3413))으로 어택. 두 무리는 1프레임 차이로 거의 동시에 나온다 (기대)");
+    }
+    if (frame == P1_FRAME + 1) {
+        sp.anchor.x = 1500;                          // 연속 두 번째 건물
+        sp.anchor.y = 4050;
+        sp.push(U_LING, hatch, rtype="Home");
+    }
+    if (frame == P1_FRAME + 3) {
+        if (homes == N1 + N2) { check(1); } else { check(0); }
+        if (sp.overflow == 0) { check(1); } else { check(0); }
+        printAll("\x07[E12-1] 만든 저글링 {} (기대 {}), 넘침 {} (기대 0)", homes, N1 + N2, sp.overflow);
+    }
+    // ---------------------------------------------------------------- E12-2 블랙홀 건작 (S1 9.4-2)
+    if (frame == PH2) {
+        phase = 2;
+        RemoveUnit("Zerg Zergling", P2);
+        CenterView("Location 13");
+        sp.push(U_HYDRA, bhFade, center=list(2048, 2048), rtype="Park");
+        printAll("\x07[E12-2] 가운데: 왼쪽 고리 + 오른쪽 구멍 모양이 왼쪽 끝부터 한 열(32px)씩 매 프레임 채워진다 (18열, 약 0.8초) — 옵저버(시야)와 히드라가 같은 속도 (기대)");
+        printAll("\x07[E12-2] 가운데 빈 6열에서도 멈추지 않고 이어진다. 히드라 {}마리는 무적으로 서 있다가 약 6초 뒤 풀려 본진으로 어택 (기대)", NBH);
+    }
+    if (frame == PH2 || frame == PH2 + 18 || frame == PH2 + 36) {
+        sp.push(U_OBS, bhFade, center=list(2048, 2048), rtype="Vis");    // 끊김 없는 이펙트 (원본 efftimer)
+    }
+    if (frame == PH2 + 12) {
+        if (sp.live >= 2) { check(1); } else { check(0); }                // 빈 열 사이클에도 작업이 살아 있다
+    }
+    if (frame == PH2 + 60) {
+        if (parked == NBH) { check(1); } else { check(0); }
+        if (vis == NBH * 3) { check(1); } else { check(0); }
+    }
+    if (frame == PH2 + 150) {
+        SetInvincibility(Disable, "Zerg Hydralisk", P2, "Anywhere");
+        Order("Zerg Hydralisk", P2, "Anywhere", Attack, "Location 23");
+        printAll("\x07[E12-2] 히드라 풀림 — 본진으로 어택 (무적이 풀렸는지 확인)");
+    }
+    // ---------------------------------------------------------------- E12-3 보스 워프 (S1 9.4-3) + A-3
+    if (frame == PH3) {
+        phase = 3;
+        RemoveUnit("Zerg Hydralisk", P2);
+        RemoveUnit("Protoss Observer", P2);
+        sp.job(center="Location 13", order=spawn.attack("Location 14"), rtype="Warp").layer(8, warp).layer(12, warp).layer(2, warp).layer(3, warp).push();
+        sp.push(U_MARK, marker, center=15, rtype="Mark");               // A-3: 1부터 번호 15 = 오른쪽 끝
+        printAll("\x07[E12-3] 가운데(로케이션 13)에 레이스 → 배틀 → 벌처 → 골리앗이 같은 도형에 2프레임 간격으로 나타나 모두 오른쪽(로케이션 14)으로 어택 이동 (기대)");
+        printAll("\x07[E12-4] (A-3 의 19) 오른쪽 끝 로케이션 15 (3413, 2048)에 영웅 질럿(피닉스) 5기 가로줄 — 14·16 이면 다름 (기대)");
+    }
+    if (frame == PH3 + 10) {
+        sp.spawn_now(U_BOSS, at="Location 14", rtype="Boss");            // f_TempRepeat: 이름 = 그 로케이션 (한 칸 앞 아님)
+        printAll("\x07[E12-3] 영웅 배틀(노라드 II) 한 기가 오른쪽 로케이션 14 (2731, 2048) 에 나타남 — 가운데(13)면 다름 (기대)");
+    }
+    if (frame == PH3 + 20) {
+        if (w12 - w8 == 2 && w2 - w12 == 2 && w3 - w2 == 2) { check(1); } else { check(0); }
+        if (boss == 1) { check(1); } else { check(0); }
+        if (marks == 5) { check(1); } else { check(0); }
+        printAll("\x07[E12-3] 층 프레임 {} {} {} {} (2씩 커지면 정상 — 층 사이 빈 프레임 1개)", w8, w12, w2, w3);
+    }
+    // ---------------------------------------------------------------- E12-5 전역 회전 (보조)
+    if (frame == PH4) {
+        phase = 4;
+        RemoveUnit("Terran Wraith", P2);
+        RemoveUnit("Terran Battlecruiser", P2);
+        RemoveUnit("Terran Vulture", P2);
+        RemoveUnit("Terran Goliath", P2);
+        sp.push("Zerg Scourge", ray, center=list(2048, 2048), rotate=sp.GLOBAL, lm=1, delay=3, rtype="Nothing");
+        printAll("\x07[E12-5] 가운데에 스커지가 3프레임마다 한 기씩 — 12시에서 시작해 **시계 방향**으로 도는 나선 (각은 소환 순간의 전역값, 기대)");
+    }
+    if (frame >= PH4 && frame < PH5) { sp.rotation += 12; }
+    // ---------------------------------------------------------------- E12-6 스킬 유닛 (보조)
+    if (frame == PH5) {
+        phase = 5;
+        sp.push("Zerg Broodling", ring, center="Location 8", order=spawn.patrol("Location 18"), rtype="Skill");
+        printAll("\x07[E12-6] 위 가운데(로케이션 8)에 브루들링 원 → 아래(로케이션 18)로 순찰하다 약 0.6초 만에 사라짐 (기대)");
+    }
+    // ---------------------------------------------------------------- E12-7 스캔 이펙트 (보조)
+    if (frame == PH6) {
+        phase = 6;
+        RemoveUnit("Zerg Scourge", P2);
+        sp.scan_effect(ring, 429, color=16, center="Location 12");
+        printAll("\x07[E12-7] 왼쪽(로케이션 12)에 스캔 이펙트 원(이미지 429, 색 16) — 스캐너 유닛은 남지 않음 (기대)");
+    }
+    sp.tick();
+    // ---------------------------------------------------------------- E12-8 정리
+    if (frame == PH7) {
+        phase = 7;
+        if (sp.overflow == 0) { check(1); } else { check(0); }
+        if (sp.live == 0) { check(1); } else { check(0); }
+        if (homes == N1 + N2 && parked == NBH) { check(1); } else { check(0); }
+        printAll("\x07[E12-8] 점검 {} / {} (같으면 정상, 기대 {}), 남은 작업 {} (0)", good, checks, CHECKS, sp.live);
+    }
+}

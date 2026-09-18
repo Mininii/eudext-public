@@ -1,0 +1,73 @@
+// eudext 예제 (epScript): 동기화 입력(sync) + 로컬 표시(local).
+//
+// 빌드 (저장소 밖 작업 폴더에서):
+//   python eudext/examples/sync_build.py --work <작업 폴더>
+//   ① 이 파일을 파이썬으로 번역·실행해 **선언만** 모은다 (sync.collect — 트리거는 만들지 않는다)
+//   ② eds 를 쓴다: [boot] → [MSQC](선언에서 만든 줄) → [eudext_sync_hook.py] → [sync_example.eps]
+//   ③ euddraft 를 돌린다. 빌드 안에서 훅이 [MSQC] 설정이 선언과 같은지 확인한다(sync.verify).
+// 선언을 고치면 ①②를 다시 해야 한다 — euddraft 는 eds 를 플러그인보다 먼저 읽기 때문이다.
+//
+// 훅 플러그인이 하는 일: beforeTriggerExec 앞(MSQC 수신 뒤)에서 sync.update(),
+// afterTriggerExec 끝(이 파일 뒤)에서 local.update(). 그래서 이 파일은 둘 다 부르지 않는다.
+import eudext.sync as sync;
+import eudext.dbg as dbg;
+import eudext.local as local;
+
+// --- 선언: 모듈 최상위 (선언 수집과 euddraft 빌드에서 똑같은 순서로 실행된다) ---
+const bus = sync.Bus("msqc", qc_unit=49, debug=0, name="ex");          // 49: 이 맵에서 쓰지 않는 유닛
+const jump = bus.key_down("SPACE", guard=sync.not_typing(), level=1);    // 펄스 + 누름 상태
+const fire = bus.mouse_down("L", guard=sync.guards(sync.not_typing(), sync.key_held("LCTRL")));
+const mouse = local.track_mouse();                                       // local.update() 가 채우는 로컬 좌표
+const mx = bus.value(mouse.x);                                           // 받은 사이클에만 갱신되는 걸쇠
+const my = bus.value(mouse.y);
+const panel = local.key_toggle("TAB", guard=local.not_typing());         // 로컬 표시 토글
+
+const score = PVariable();      // 공유: 플레이어별 점수
+const held = PVariable();       // 공유: SPACE 누름 프레임 수
+var f5Prints, rclickPrints, tick, selCount;
+const SEL_TABLE = 0x6284B8;     // 로컬 선택 유닛 표 (B13-8)
+const wTyping = dbg.watch("m21.typing", 0x68C144);        // 채팅 중 판정 (B13-3·5)
+const wSel = dbg.snapshot("m21.sel", SEL_TABLE, 12);      // 선택 표 (로컬 — 표시 전용)
+
+function beforeTriggerExec() {
+    const cp0 = getcurpl();
+    foreach(p : EUDLoopPlayer()) {
+        setcurpl(p);                                   // 공유 루프 (모든 PC 가 같게 CP 를 바꾼다)
+        if (jump.pulse(p)) { score[p] += 1; }          // 받은 사이클에만 참
+        if (fire.pulse(p)) { score[p] += 10; }
+        if (jump.level(p)) { held[p] += 1; }           // Down/Up 짝으로 만든 상태
+
+        local.begin(CurrentPlayer);                    // 표시 전용: 이 PC 가 p 일 때만 (IsUserCP)
+        if (local.key_pressed("F5")) {
+            println("점수 {} / 누름 {} / 동기화 마우스 {}, {}", score[p], held[p], mx.get(p), my.get(p));
+            f5Prints += 1;
+            dbg.mark("m21.f5_prints", f5Prints);           // B13-5·6: 누름 1회당 출력 1회인가
+            dbg.mark("m21.score", score[p]);
+            dbg.mark("m21.held", held[p]);
+            dbg.mark("m21.level", jump.level(p) ? 1 : 0);
+            dbg.mark("m21.mx", mx.get(p));
+            dbg.mark("m21.my", my.get(p));
+            dbg.mark("m21.mouse_local", mouse.x);
+            dbg.mark("m21.panel", panel.Exactly(1) ? 1 : 0);
+        }
+        if (panel.Exactly(1)) {
+            if (local.mouse_pressed("R")) {
+                println("로컬 마우스 {}, {}", mouse.x, mouse.y);
+                rclickPrints += 1;
+                dbg.mark("m21.rclick_prints", rclickPrints);
+            }
+        }
+        local.end();
+    }
+    setcurpl(cp0);
+    tick += 1;
+    if (tick % 240 == 0) {                                 // 10초마다: 점수·선택 표를 남긴다 (B13-1·2·8)
+        selCount = 0;
+        for (var i = 0; i < 12; i++) {
+            if (dwread(SEL_TABLE + 4 * i) != 0) { selCount += 1; }
+        }
+        dbg.mark("m21.sel_count", selCount);
+        dbg.mark("m21.tick", tick);
+        dbg.mark("m21.pulses", score[0]);
+    }
+}

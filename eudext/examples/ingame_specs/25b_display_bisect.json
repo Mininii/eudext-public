@@ -1,0 +1,199 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "25b_display_bisect",
+ "title": "13번째 줄·TBL 쓰기 좁히기 18단계 (E6-3·4·4b EUD ERROR — 튕길 위험)",
+ "timeout_s": 120,
+ "items": [
+  {
+   "kind": "group",
+   "id": "E6-3#bisect",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "bx.done",
+     "equals": 1
+    },
+    {
+     "kind": "mark",
+     "name": "bx.ok",
+     "equals": 18
+    },
+    {
+     "kind": "mark",
+     "name": "bx.stage",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "bx.head",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "bx.local",
+     "min": 0
+    },
+    {
+     "kind": "text",
+     "name": "bx.line13"
+    },
+    {
+     "kind": "text",
+     "name": "bx.tbl"
+    }
+   ],
+   "info": {}
+  }
+ ],
+ "done": [
+  "bx.done"
+ ],
+ "stall_s": 20,
+ "suites": [
+  {
+   "name": "noop",
+   "phase": 1,
+   "title": "쓰기 없음",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "read13",
+   "phase": 2,
+   "title": "13번째 줄 읽기",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "readhead",
+   "phase": 3,
+   "title": "0x628438 읽기",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "ccmu",
+   "phase": 4,
+   "title": "CreateUnit 실패 트릭만",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "line13_4",
+   "phase": 5,
+   "title": "13번째 줄 4바이트",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "line13_16",
+   "phase": 6,
+   "title": "13번째 줄 16바이트",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "line13_32",
+   "phase": 7,
+   "title": "13번째 줄 32바이트(변수 자리)",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "line13_93",
+   "phase": 8,
+   "title": "13번째 줄 93바이트 — 멈춘 틀",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "line13_212",
+   "phase": 9,
+   "title": "13번째 줄 212바이트",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "line13_216",
+   "phase": 10,
+   "title": "13번째 줄 216바이트(줄 끝 마스크 dword)",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "cp13_93",
+   "phase": 11,
+   "title": "13번째 줄 93바이트 CP 방식(f_repmovsd_epd)",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "line10_93",
+   "phase": 12,
+   "title": "11번째 줄 93바이트",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "line14_93",
+   "phase": 13,
+   "title": "15번째 줄 93바이트",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "tbl_read",
+   "phase": 14,
+   "title": "TBL 읽기",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "tbl_const",
+   "phase": 15,
+   "title": "TBL 상수 쓰기",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "tbl_var",
+   "phase": 16,
+   "title": "TBL 변수 + tail + NUL (E6-4)",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "tbl_raw",
+   "phase": 17,
+   "title": "TBL eos·tail 없이 (E6-4b)",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  },
+  {
+   "name": "done",
+   "phase": 18,
+   "title": "끝 표식",
+   "timeout_s": 30,
+   "timeout_cycles": 120,
+   "items": []
+  }
+ ]
+}

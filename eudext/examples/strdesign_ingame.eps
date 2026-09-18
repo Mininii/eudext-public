@@ -1,0 +1,65 @@
+// eudext.strdesign 인게임 확인 맵 — 조각 ingame.md 의 D6-1 ~ D6-5 (모두 권장: 결과 바이트는 시험에서 원본 Lua 와 같음을 확인했다)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/strdesign_ingame.eds --work <작업 폴더>
+// 혼자(P1) 연다. 약 6초마다 한 쪽씩 5쪽이 돌고, 다 돌면 다시 1쪽부터 나온다.
+// 각 쪽의 첫 줄 [D6-번호] 가 확인 항목이다. 그 아래 줄의 장식 모양·색·정렬이 원본 맵 화면과 같은지 사진이나 글로 알려 주면 된다.
+//
+// 모든 줄은 컴파일 시점 문자열이다(sd.design 은 트리거를 만들지 않는다). printAll(전역 const) 과 DisplayText 두 길을 섞었다.
+import eudext.strdesign as sd;
+
+const style = sd.set_style("seed");                                  // 이 맵의 기본 판 (theSeed·Stella_II 모양)
+const intro = "\x04[D6] eudext.strdesign 확인 맵 — 6초마다 한 쪽씩, 5쪽";
+const seedTitle = sd.design("\x04[\x1f보스\x04] 등장 (전역 const + printAll)");   // 기본 판(seed)
+const pp = sd.parts("respect");                                      // StrD[1], StrD[2] (respect 판)
+var wait, page;
+
+function page1() {                     // D6-1: mcf 판 (Library 판 — DPS강화하기·UE_RE·Breeze·GaLaXy.2_R)
+    printAll(intro);
+    DisplayText("\x04[D6-1] 1/5 mcf 판 — 아래 3줄이 DPS강화하기의 『 』 장식과 같은가 (색·모양·정렬)");
+    DisplayText(sd.design("\x04왼쪽 정렬 (StrDesign)", style="mcf"));
+    DisplayText(sd.design_x("\x04가운데 정렬 (StrDesignX)", style="mcf"));
+    DisplayText(sd.design_x("\x1DExtra Boss\x04 등장 — 가운데", style="mcf"));
+}
+
+function page2() {                     // D6-2: seed 판 (theSeed·Stella_II·MSF-Template) — 이 맵의 기본 판
+    DisplayText("\x04[D6-2] 2/5 seed 판 — 아래 3줄이 theSeed·Stella_II 의 。˙+˚ 장식과 같은가");
+    DisplayText(sd.design("\x04왼쪽 정렬 (StrDesign)"));
+    DisplayText(sd.design_x("\x04가운데 정렬 (StrDesignX)"));
+    printAll(seedTitle);
+}
+
+function page3() {                     // D6-3: respect 판 (MSF_Respect_V) — seed 와 첫·끝 색만 다르다
+    DisplayText("\x04[D6-3] 3/5 respect 판 — 아래 3줄이 MSF_Respect_V 의 장식과 같은가 (seed 와 맨 앞·맨 끝 색만 다름)");
+    DisplayText(sd.design("\x04왼쪽 정렬 (StrDesign)", style="respect"));
+    DisplayText(sd.design_x("\x04가운데 정렬 (StrDesignX)", style="respect"));
+    DisplayText("\x13" + pp[0] + "\x07StrD[1] .. 글 .. StrD[2]" + pp[1]);
+}
+
+function page4() {                     // D6-4: memory 판 (MSF_Memory_2) — 줄 머리 \r\r
+    DisplayText("\x04[D6-4] 4/5 memory 판 — 아래 3줄이 MSF_Memory_2 의 ·【 】· 장식과 같은가, 2·3번째 줄이 가운데로 가는가");
+    DisplayText(sd.design("\x04왼쪽 정렬 (StrDesign, 앞에 \\r\\r)", style="memory"));
+    DisplayText(sd.design_x("\x04가운데 정렬 (StrDesignX, \\r\\r 뒤에 \\x13)", style="memory"));
+    DisplayText(sd.design_x("\x04가운데 정렬 (StrDesignX2, \\r\\r 없음)", style="memory", lead=false));
+}
+
+function page5() {                     // D6-5: 원본에서 확인 못 한 모양 (S7 9절)
+    DisplayText("\x04[D6-5] 5/5 특이 모양 — 첫째 \\x13 두 번: 가운데로 한 번만 정렬되는가 / 둘째 오른쪽 정렬 / 셋째 줄바꿈: 장식이 첫 줄 앞·끝 줄 뒤에만");
+    // 주의: 액션 문장의 문자열 리터럴에 짝 없는 ")" 를 쓰면 epScript 번역문이 깨진다 (eudplib 0.81.0 — 조각 design.md)
+    DisplayText(sd.design_x("\x13\x04\\x13 이 두 번 들어간 줄"));
+    DisplayText(sd.design("\x04오른쪽 정렬 (\\x12, Stella_II 모양)", right=true));
+    DisplayText(sd.design("\x04첫 줄\n\x04둘째 줄"));
+    printAll("\x04[D6] 한 바퀴 끝 — 다시 1/5 부터");
+}
+
+function afterTriggerExec() {
+    if (wait == 0) {
+        if (page == 0) { page1(); }
+        else if (page == 1) { page2(); }
+        else if (page == 2) { page3(); }
+        else if (page == 3) { page4(); }
+        else { page5(); }
+        page += 1;
+        if (page == 5) { page = 0; }
+        wait = 144;
+    }
+    wait -= 1;
+}

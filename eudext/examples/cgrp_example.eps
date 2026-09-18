@@ -1,0 +1,43 @@
+// eudext.cgrp 예제 (epScript) — CGRP 점 그림을 영구 스프라이트로 찍기 (DESIGN 4.20, CtrigAsm 29장)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/cgrp_example.eds --work <작업 폴더>
+// 실제 맵에서는 CS_Photo.exe 가 만든 파일을 const cg = cgrp.CGRP.load("그림.cgrp"); 로 읽는다(상대 경로 = euddraft 작업 폴더).
+// 여기서는 파일 없이 칸 값을 직접 준다(가이드북 비트: 1 빨강, 2 초록, 128 Fill, 흑색 명암 ×256, 이미지 ×16384, 높이 ×16777216).
+import eudext.bullet as bullet;
+import eudext.cgrp as cgrp;
+
+const kind = bullet.CtrigKind(unit=203, weapon=2, flingy=147, sprite=231, image=233, iscript=233, half_air=True);
+kind.install();
+bullet.setup(loc="Location 0");
+
+// 3 × 2 칸: 높이가 칸마다 다른 그림 (예제 29-5·29-7 의 "height" 방식)
+const H1 = 3 * 16777216;
+const H2 = 9 * 16777216;
+const IMG = 233 * 16384;
+const cg = cgrp.CGRP.from_cells(3, 2, list(
+    129 + IMG + H1, 0, 130 + IMG + H2,
+    128 + IMG + H1, 129 + 2048 + IMG + H2, 0), dot_w=4, dot_h=5);
+const layers = cg.layers(mode="height");
+const painter = cgrp.CGRPPainter(layers, kind, P8, per_frame=2, delay=1, on_fail="retry");
+// 직접 만든 층: 점 (0, 0)·(8, 0)·(8, 0) 을 높이 12 에 (펼친 목록 = dx0, dy0, dx1, dy1, …)
+const mine = cgrp.CGRPLayer("mine", 16, 233, 12, list(0, 0, 8, 0, 8, 0));
+const painter2 = cgrp.CGRPPainter(list(mine), kind, P8, per_frame=8);
+
+var frame, finished, finished2, drawn, dropped, drawn2;
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        painter.start(1000, 1000);
+        painter2.start(1200, 1000);
+    }
+    painter.tick();
+    painter2.tick();
+    if (painter.done()) { finished = 1; }
+    if (painter2.done()) { finished2 = 1; }
+    drawn = painter.drawn;
+    dropped = painter.dropped;
+    drawn2 = painter2.drawn;
+    if (frame == 30) {
+        printAll("cgrp 예제: 점 {} / {} 실패 {}, 직접 만든 층 {} / {}", drawn, painter.total, dropped, drawn2, painter2.total);
+    }
+}

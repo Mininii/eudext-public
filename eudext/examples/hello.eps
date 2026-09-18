@@ -1,0 +1,17 @@
+// eudext 예제 (epScript): 부트 뒤 `import eudext.<모듈> as x;` 로 패키지 하위 모듈을 불러온다.
+// _parts 는 내부 부품이지만 f_ 별칭이 있는 값 함수(and_const, set_masked)는 epScript 에서 부를 수 있다.
+//   parts.and_const(…)  → 번역: parts.f_and_const(…)   (모듈 함수 호출에는 f_ 가 붙는다)
+//   er.EudextError      → 대문자 이름은 그대로
+import eudext._parts as parts;
+import eudext.errors as er;
+
+const ErrorType = er.EudextError;
+var low, packed;
+
+function afterTriggerExec() {
+    low = parts.and_const(dwread_epd(0), 0xFF);          // P1 마린 데스 칸의 하위 바이트 (읽기만)
+    parts.set_masked(packed, low, 0xFF00);               // packed 의 둘째 바이트만 바꾼다 (low 의 둘째 바이트 = 0)
+    if (packed.AtLeast(1)) {
+        packed = 0;
+    }
+}

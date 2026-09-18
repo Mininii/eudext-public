@@ -1,0 +1,13 @@
+# 텍스트는 저장소에 LF 로 둔다 (Ubuntu·Windows 공용)
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# 바이너리
+*.scx binary
+*.chk binary
+*.e3s binary
+*.whl binary
+*.zip binary
+*.gz binary
+*.pyd binary
+*.so binary

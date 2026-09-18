@@ -1,0 +1,212 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "25_display_check",
+ "title": "DisplayPrint 13번째 줄·TBL·관전자 (E6-1·3·4·4b·8 — 튕길 위험)",
+ "timeout_s": 300,
+ "items": [
+  {
+   "kind": "group",
+   "id": "E6-1",
+   "items": [
+    {
+     "kind": "check",
+     "name": "m25.E6-1.shown"
+    },
+    {
+     "kind": "mark",
+     "name": "m25.E6-1.obs",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m25.E6-1.local",
+     "min": 0
+    },
+    {
+     "kind": "hdr",
+     "field": "local_player",
+     "max": 131
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "hdr local_player (관전자 PC 128~131, P1 PC 0)",
+     "chat (두 PC)"
+    ],
+    "expect": "관전자 버퍼에 '[E6-1] 모두…'·'관전자에게만…'·'LOCAL: 이 PC 번호 = 128~131' 세 줄, P1 버퍼에는 '관전자에게만' 줄 없음·번호 0",
+    "done_marker": "page 0 (frame 1~72)",
+    "category": "MULTI",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "25 display_check (관전자 PC)",
+    "bundle": "M1_multi",
+    "notes": "M1_multi 에 page 0 세 줄만 옮겨 함께 봄",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "채팅 스냅숏"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "E6-8",
+   "items": [
+    {
+     "kind": "result",
+     "name": "m25.E6-8.all",
+     "total": 7
+    },
+    {
+     "kind": "mark",
+     "name": "m25.E6-8.lastbad",
+     "equals": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "result m25 = okCount / total",
+     "watch m25.lastBad"
+    ],
+    "expect": "7 / 7, 틀린 번호 0",
+    "done_marker": "통합 맵: aa.display.end > 0 (phase 16 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 1",
+    "category": "AUTO",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "25 display_check",
+    "bundle": "auto_all",
+    "instrument": "display_ingame.eps self_check 뒤 dbg.result"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "E6-3",
+   "items": [
+    {
+     "kind": "check",
+     "name": "m25.E6-3.head"
+    },
+    {
+     "kind": "text",
+     "name": "m25.E6-3.line13",
+     "contains": "[E6-3] 13번째 줄"
+    },
+    {
+     "kind": "mark",
+     "name": "m25.E6-3.head_before",
+     "min": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch_mem 0x641598:56 (13번째 줄 버퍼)",
+     "watch_mem 0x628438 (트릭 전후 머리 복원)",
+     "mark m25.stage / bx.stage (멈춘 단계)"
+    ],
+    "expect": "13번째 줄 바이트 = 우리 글(자동), 머리 값 복원(자동). SC 오류 문구가 보이는지·오류 소리가 나는지는 눈·귀",
+    "done_marker": "page 1 (25) / bx.ok = 8~10 (25b)",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "25 display_check + 25b display_bisect",
+    "bundle": "25 display_check + 25b display_bisect (EUD ERROR 좁히기)",
+    "risk": "2026-09-18 인게임에서 게임이 EUD ERROR 로 멈췄다 (통합 맵에서 뺌)",
+    "extra": [
+     "AUTO",
+     "VISUAL"
+    ],
+    "instrument": "line13 버퍼 dbg.snapshot_text + 단계 표식"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "E6-4",
+   "items": [
+    {
+     "kind": "text",
+     "name": "m25.E6-4.tbl",
+     "regex": "^\\[E6-4\\] 마린 \\d+"
+    },
+    {
+     "kind": "mark",
+     "name": "m25.E6-4.frame",
+     "min": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch_mem GetTBLAddr(1):16 (마린 이름 TBL)",
+     "mark m25.stage / bx.stage"
+    ],
+    "expect": "이름 칸이 '[E6-4] 마린 <숫자>' 이고 뒤 잔재 없음(눈 — 마린 선택 필요). TBL 바이트 끝 NUL·숫자 갱신은 자동",
+    "done_marker": "page 2 (25) / bx.ok = 15~17 (25b)",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "25 display_check + 25b display_bisect",
+    "bundle": "25 display_check + 25b display_bisect (마린 선택)",
+    "risk": "E6-3 과 같은 구간 — 통합 맵에서 뺌 (자체 점검 E6-8 에서는 같은 쓰기가 통과했다)",
+    "extra": [
+     "AUTO_ASSIST",
+     "AUTO"
+    ],
+    "instrument": "TBL 칸 dbg.snapshot_text + 단계 표식"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "E6-4b",
+   "items": [
+    {
+     "kind": "text",
+     "name": "m25.E6-4b.tbl",
+     "regex": "^\\[E6-4b\\]"
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch_mem GetTBLAddr(1):16",
+     "mark m25.stage / bx.stage"
+    ],
+    "expect": "NUL 없이 짧게 쓰면 앞 쪽 글자가 뒤에 남아 보임(눈), 바이트 잔재는 자동",
+    "done_marker": "page 3 (25) / bx.ok = 17 (25b)",
+    "category": "CRASH_RISK",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "25 display_check + 25b display_bisect",
+    "bundle": "25 display_check + 25b display_bisect",
+    "risk": "E6-3 과 같은 구간 — 통합 맵에서 뺌",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "E6-4 와 같음"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "E6-8#stage",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m25.stage",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m25.stage_ok",
+     "min": 0
+    }
+   ],
+   "info": {}
+  }
+ ],
+ "done": [
+  "done"
+ ],
+ "stall_s": 20
+}

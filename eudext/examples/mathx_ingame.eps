@@ -1,0 +1,190 @@
+// eudext.mathx 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 C9-2
+// 결과가 CtrigAsm 원본(f_Lengthdir·CA_Rotate·CA_Rotate3D·f_Atan2·f_Atan2X·CiDiv/f_iDiv·CA_RatioXY·f_Sqrt·f_Log2·LengthdirX)과
+// 같은 값인지 SC:R 에서 한 번 본다. 기대값은 원본 Lua 를 줄 단위로 옮긴 참조 구현(tests/ref_mathx.py)으로 만들었고,
+// 같은 표를 에뮬레이터로도 돌려 본다(tests/t_mathx.py).
+//
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/mathx_ingame.eds --work <작업 폴더>
+// 나온 mathx_ingame_out.scx 를 StarCraft: Remastered 에서 혼자(P1) 연다. 1초쯤 동안 [C9-2] 줄이 차례로 뜬다.
+// - 줄마다 "일치 a / b" 가 a = b 이면 정상. 마지막 줄 "[C9-2] 전체 일치 N / N (같으면 정상)".
+// - 다른 값이 있으면 "다름" 줄이 뜬다(16진수, 음수는 FFFF…). 그 줄을 사진이나 글로 알려 준다.
+// - 표본 줄의 괄호 안이 기대값이다.
+import eudext.mathx as mx;
+
+// ---- 기대값 표 (tests/ref_mathx.py 로 만든 값. tests/t_mathx.py 가 다시 대조한다) ----
+// EUDArray(list(…)) = 초기값이 박힌 배열(트리거 없음). `[…]` 리터럴은 게임 시작 때 채우는 트리거를 만든다.
+const LD_R = EUDArray(list(0x20, 0x20, 0xFFFFFFE0, 0x64, 0x64, 0x64, 0x64, 0xFFFFFF9C, 0x7FFF, 0x64, 0xFFFF8000, 0x7FFF, 0x64, 0x9C40, 0x64, 0x7, 0xFFFFFFFF, 0x64, 0xFFFEEE90));
+const LD_A = EUDArray(list(0x0, 0x2D, 0x5A, 0xFFFFFFA6, 0x1C2, 0x167, 0x168, 0x1E, 0x2D, 0x1, 0x2D, 0x167, 0xFFFFFD2F, 0x1E, 0x80000000, 0xB3, 0x10E, 0x2D, 0xE1));
+const LD_C = EUDArray(list(0x20, 0x16, 0x0, 0x0, 0x0, 0x63, 0x64, 0xFFFFFFAA, 0x5A81, 0x63, 0xFFFFA57E, 0x7FFA, 0x63, 0xFFFF8751, 0xFFFFFFC3, 0xFFFFFFFA, 0x0, 0x46, 0xFFFFC159));
+const LD_S = EUDArray(list(0x0, 0x16, 0xFFFFFFE0, 0xFFFFFF9C, 0x64, 0xFFFFFFFF, 0x0, 0xFFFFFFCF, 0x5A81, 0x1, 0xFFFFA57E, 0xFFFFFDC5, 0xFFFFFFFF, 0x4E1F, 0xFFFFFFB2, 0x0, 0x1, 0x46, 0xFFFFC159));
+const RO_X = EUDArray(list(0x0, 0x20, 0x1B, 0x1B, 0x0, 0x40, 0xFFFFFFD0, 0x64));
+const RO_Y = EUDArray(list(0xFFFFFFE0, 0x0, 0xFFFFFFF0, 0xFFFFFFF0, 0xFFFFFFE0, 0x40, 0x14, 0x0));
+const RO_A = EUDArray(list(0x5A, 0x2D, 0x1E, 0xFFFFFFE2, 0xB4, 0x2D, 0x87, 0x1));
+const RO_RX = EUDArray(list(0x20, 0x16, 0x1E, 0x10, 0x0, 0x0, 0x13, 0x63));
+const RO_RY = EUDArray(list(0x0, 0x16, 0x0, 0xFFFFFFE6, 0x20, 0x5A, 0xFFFFFFD1, 0x1));
+const R3_IN = EUDArray(list(0x1B, 0xFFFFFFF0, 0x1E, 0x2D, 0x3C, 0x64, 0x0, 0x5A, 0x5A, 0x5A, 0xFFFFFFD0, 0x14, 0x0, 0x87, 0xFFFFFFE2, 0x5, 0x7, 0x167, 0x1, 0xB4));
+const R3_OUT = EUDArray(list(0xE, 0x0, 0x0, 0xFFFFFF9C, 0x0, 0x64, 0xFFFFFFDD, 0xFFFFFFF2, 0xE, 0xFFFFFFFC, 0x5, 0x0));
+const AT_Y = EUDArray(list(0x0, 0xFFFFFF9C, 0x0, 0x64, 0xFFFFFF9C, 0x64, 0xFFFFFFFE, 0xFFFFFE0C, 0xFFFFFFFF, 0x0, 0xFFFFFFFB, 0x0, 0x186A0, 0x1, 0x1));
+const AT_X = EUDArray(list(0xFFFFFF9C, 0x0, 0x64, 0x0, 0xFFFFFF9C, 0x64, 0xFFFFFFFF, 0x0, 0xFFFF8001, 0x0, 0x0, 0xFFFFFFFB, 0x3, 0xFFFFFC18, 0x1));
+const AT_T = EUDArray(list(0xB4, 0x10E, 0x0, 0x5A, 0xE2, 0x2E, 0xF4, 0x10E, 0xB5, 0x5A, 0x10E, 0xB4, 0x5A, 0xB3, 0x2E));
+const SC_Y = EUDArray(list(0x0, 0xA, 0x0, 0xFFFFFFF6, 0x1, 0xFFFFFFFD));
+const SC_X = EUDArray(list(0xA, 0x0, 0xFFFFFFF6, 0x0, 0x1, 0x7));
+const SC_T = EUDArray(list(0x40, 0x80, 0xC0, 0x0, 0x61, 0x2F));
+const DR_A = EUDArray(list(0x0, 0x1, 0x2C, 0x2D, 0x59, 0x5A, 0x87, 0xB4, 0xE1, 0x10E, 0x13B, 0x167, 0x168, 0xFFFFFFFF, 0xFFFFFFA6, 0x2D1));
+const DR_D = EUDArray(list(0x40, 0x40, 0x5F, 0x60, 0x7F, 0x80, 0xA0, 0xC0, 0xE0, 0x0, 0x20, 0x3F, 0x40, 0x3F, 0x0, 0x40));
+const SD_A = EUDArray(list(0x7, 0xFFFFFFF9, 0x7, 0xFFFFFFF9, 0x5, 0xFFFFFFFB, 0x80000000, 0x3E8, 0xFFFFFC18));
+const SD_B = EUDArray(list(0x2, 0x2, 0xFFFFFFFE, 0xFFFFFFFE, 0x0, 0x0, 0xFFFFFFFF, 0x7, 0x10000));
+const SD_QE = EUDArray(list(0x3, 0xFFFFFFFD, 0xFFFFFFFD, 0x3, 0xFFFFFFFF, 0x1, 0x80000000, 0x8E, 0x0));
+const SD_RE = EUDArray(list(0x1, 0xFFFFFFFF, 0x1, 0xFFFFFFFF, 0x5, 0xFFFFFFFB, 0x0, 0x6, 0xFFFFFC18));
+const SD_QC = EUDArray(list(0x3, 0xFFFFFFFD, 0xFFFFFFFD, 0x3, 0x7FFFFFFF, 0x80000000, 0x80000000, 0x8E, 0x0));
+const SD_RC = EUDArray(list(0x1, 0xFFFFFFFF, 0x1, 0xFFFFFFFF, 0x5, 0xFFFFFFFB, 0x0, 0x6, 0xFFFFFC18));
+const RT_IN = EUDArray(list(0x1B, 0x96, 0x64, 0xFFFFFFF0, 0x96, 0x64, 0xFFFFFFDF, 0x32, 0x64, 0x7, 0x0, 0x64, 0x64, 0xFF, 0x64, 0xFFFFFF9C, 0xFF, 0x64, 0x1, 0x63, 0x64, 0xFFFFFFFF, 0x63, 0x64, 0x1F4, 0x2D690, 0x336A8));
+const RT_OUT = EUDArray(list(0x28, 0xFFFFFFE8, 0xFFFFFFF0, 0x0, 0xFF, 0xFFFFFF01, 0x0, 0x0, 0x1B9));
+const SQ_N = EUDArray(list(0x0, 0x1, 0x2, 0x3, 0x4, 0x63, 0x64, 0xFFFE0001, 0xFFFFFFFF, 0x40000000));
+const SQ_R = EUDArray(list(0x0, 0x1, 0x1, 0x1, 0x2, 0x9, 0xA, 0xFFFF, 0xFFFF, 0x8000));
+const LG_N = EUDArray(list(0x0, 0x1, 0x2, 0x3, 0x3E8, 0x80000000, 0xFFFFFFFF));
+const LG_R = EUDArray(list(0x80000000, 0x0, 0x1, 0x1, 0x9, 0x1F, 0x1F));
+const LP_R = EUDArray(list(0x64, 0xFFFFFF9C, 0x7FFF, 0xFFFF8000, 0x9C40, 0x80000000, 0x3039));
+const LP_A = EUDArray(list(0x1, 0x3, 0x2, 0x5, 0x7, 0x1, 0xFFFFFFFF));
+const LP_C = EUDArray(list(0x46, 0x46, 0x0, 0x0, 0x13F9, 0x0, 0x2219));
+const LP_S = EUDArray(list(0x46, 0xFFFFFFBA, 0x7FFF, 0x0, 0xFFFFEC07, 0x0, 0xFFFFDDE7));
+const COUNTS = EUDArray(list(19, 8, 4, 15, 6, 16, 9, 9, 10, 7, 7));
+// ---- 표 끝 ----
+
+const spin = mx.Rotator();      // 변수 각 회전 (각은 spin.set 으로)
+var frame, total, good;
+var hundred = 100;             // 표본 입력 (상수 접기가 아니라 변수 경로를 타게 변수에 담는다)
+var f45 = 45;
+var one = 1;
+var n99 = 99;
+var m100 = 0xFFFFFF9C;           // −100 (음수 리터럴 전역 초기값은 지연 초기화로 번역돼 한 프로세스 여러 빌드에서 걸린다)
+var f30 = 30;
+
+function tally(ok, n) {           // epScript 함수에는 문자열을 넘길 수 없어 이름 줄은 부른 자리에서 찍는다
+    total += n;
+    good += ok;
+}
+
+function g_lengthdir() {
+    var ok = 0;
+    for (var i = 0; i < 19; i++) {
+        const c, s = mx.lengthdir(LD_R[i], LD_A[i]);
+        if (c == LD_C[i] && s == LD_S[i]) { ok += 1; }
+        else { printAll("\x06[C9-2] lengthdir #{} 다름: ({:x}, {:x}) 기대 ({:x}, {:x})", i, c, s, LD_C[i], LD_S[i]); }
+    }
+    tally(ok, 19);
+    printAll("\x07[C9-2] lengthdir 일치 {} / 19", ok);
+}
+
+function g_rotate() {
+    var ok = 0;
+    for (var i = 0; i < 8; i++) {
+        spin.set(RO_A[i]);
+        const x2, y2 = spin(RO_X[i], RO_Y[i]);
+        if (x2 == RO_RX[i] && y2 == RO_RY[i]) { ok += 1; }
+        else { printAll("\x06[C9-2] Rotator #{} 다름: ({:x}, {:x}) 기대 ({:x}, {:x})", i, x2, y2, RO_RX[i], RO_RY[i]); }
+    }
+    tally(ok, 8);
+    printAll("\x07[C9-2] Rotator(CA_Rotate) 일치 {} / 8", ok);
+    ok = 0;
+    for (var j = 0; j < 4; j++) {
+        const X, Y, Z = mx.rotate3d(R3_IN[j * 5], R3_IN[j * 5 + 1], R3_IN[j * 5 + 2], R3_IN[j * 5 + 3], R3_IN[j * 5 + 4]);
+        if (X == R3_OUT[j * 3] && Y == R3_OUT[j * 3 + 1] && Z == R3_OUT[j * 3 + 2]) { ok += 1; }
+        else { printAll("\x06[C9-2] rotate3d #{} 다름: ({:x}, {:x}, {:x})", j, X, Y, Z); }
+    }
+    tally(ok, 4);
+    printAll("\x07[C9-2] rotate3d(CA_Rotate3D) 일치 {} / 4", ok);
+}
+
+function g_atan2() {
+    var ok = 0;
+    for (var i = 0; i < 15; i++) {
+        const t = mx.atan2(AT_Y[i], AT_X[i]);
+        if (t == AT_T[i]) { ok += 1; }
+        else { printAll("\x06[C9-2] atan2 #{} 다름: {} 기대 {}", i, t, AT_T[i]); }
+    }
+    tally(ok, 15);
+    printAll("\x07[C9-2] atan2(f_Atan2) 일치 {} / 15", ok);
+    ok = 0;
+    for (var j = 0; j < 6; j++) {
+        const d = mx.atan2_sc(SC_Y[j], SC_X[j]);
+        if (d == SC_T[j]) { ok += 1; }
+        else { printAll("\x06[C9-2] atan2_sc #{} 다름: {} 기대 {}", j, d, SC_T[j]); }
+    }
+    tally(ok, 6);
+    printAll("\x07[C9-2] atan2_sc(f_Atan2X) 일치 {} / 6", ok);
+    ok = 0;
+    for (var k = 0; k < 16; k++) {
+        const d2 = mx.to_dir256(DR_A[k]);
+        if (d2 == DR_D[k]) { ok += 1; }
+        else { printAll("\x06[C9-2] to_dir256 #{} 다름: {} 기대 {}", k, d2, DR_D[k]); }
+    }
+    tally(ok, 16);
+    printAll("\x07[C9-2] to_dir256 일치 {} / 16", ok);
+}
+
+function g_div() {
+    var ok = 0;
+    for (var i = 0; i < 9; i++) {
+        const q, r = mx.sdivmod(SD_A[i], SD_B[i]);
+        const qc, rc = mx.sdivmod(SD_A[i], SD_B[i], "ctrig");
+        if (q == SD_QE[i] && r == SD_RE[i] && qc == SD_QC[i] && rc == SD_RC[i]) { ok += 1; }
+        else { printAll("\x06[C9-2] sdivmod #{} 다름: {:x} {:x} / {:x} {:x}", i, q, r, qc, rc); }
+    }
+    tally(ok, 9);
+    printAll("\x07[C9-2] sdivmod(f_iDiv) 일치 {} / 9", ok);
+    ok = 0;
+    for (var j = 0; j < 9; j++) {
+        const v = mx.ratio(RT_IN[j * 3], RT_IN[j * 3 + 1], RT_IN[j * 3 + 2]);
+        if (v == RT_OUT[j]) { ok += 1; }
+        else { printAll("\x06[C9-2] ratio #{} 다름: {:x} 기대 {:x}", j, v, RT_OUT[j]); }
+    }
+    tally(ok, 9);
+    printAll("\x07[C9-2] ratio(CA_RatioXY) 일치 {} / 9", ok);
+}
+
+function g_int() {
+    var ok = 0;
+    for (var i = 0; i < 10; i++) {
+        const s = mx.isqrt(SQ_N[i]);
+        if (s == SQ_R[i]) { ok += 1; }
+        else { printAll("\x06[C9-2] isqrt #{} 다름: {} 기대 {}", i, s, SQ_R[i]); }
+    }
+    tally(ok, 10);
+    printAll("\x07[C9-2] isqrt(f_Sqrt) 일치 {} / 10", ok);
+    ok = 0;
+    for (var j = 0; j < 7; j++) {
+        const e = mx.ilog2(LG_N[j]);
+        if (e == LG_R[j]) { ok += 1; }
+        else { printAll("\x06[C9-2] ilog2 #{} 다름: {:x} 기대 {:x}", j, e, LG_R[j]); }
+    }
+    tally(ok, 7);
+    printAll("\x07[C9-2] ilog2(f_Log2) 일치 {} / 7", ok);
+    ok = 0;
+    for (var k = 0; k < 7; k++) {
+        const pc, ps = mx.lengthdir(LP_R[k], LP_A[k], 8, precise=True);
+        if (pc == LP_C[k] && ps == LP_S[k]) { ok += 1; }
+        else { printAll("\x06[C9-2] precise #{} 다름: ({:x}, {:x}) 기대 ({:x}, {:x})", k, pc, ps, LP_C[k], LP_S[k]); }
+    }
+    tally(ok, 7);
+    printAll("\x07[C9-2] lengthdir precise(LengthdirX, 주기 8) 일치 {} / 7", ok);
+}
+
+function g_samples() {
+    const c, s = mx.lengthdir(hundred, f45);
+    const a = mx.atan2(one, one);
+    const q = mx.isqrt(n99);
+    printAll("\x07[C9-2] 표본: lengthdir(100, 45) = ({}, {}) (70, 70), atan2(1, 1) = {} (46), isqrt(99) = {} (9)", c, s, a, q);
+    const nc, ns = mx.lengthdir(m100, f30);
+    printAll("\x07[C9-2] 표본: lengthdir(-100, 30) = ({:x}, {:x}) (FFFFFFAA, FFFFFFCF = -86, -49)", nc, ns);
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 8) { g_lengthdir(); }
+    else if (frame == 10) { g_rotate(); }
+    else if (frame == 12) { g_atan2(); }
+    else if (frame == 14) { g_div(); }
+    else if (frame == 16) { g_int(); }
+    else if (frame == 18) { g_samples(); }
+    else if (frame == 20) { printAll("\x07[C9-2] 전체 일치 {} / {} (같으면 정상)", good, total); }
+}

@@ -1,0 +1,345 @@
+// auto_all phase 14 `spawn` (프레임 900~1905, 정리 1910) — examples/spawn_ingame.eps 에서 옮기고 계측했다 (A-3, E12-1~9, C11-9)
+// 원래 맵과 같은 도형·패턴·프레임 순서다(sf = 이 단계 안 프레임 1부터). 더한 것:
+//   - 콜백에서 만든 유닛의 위치(+0x28)를 콜백 x, y 와 맞대 본다 → posbad
+//   - 패턴별 첫 유닛 EPD 를 남겨 몇 프레임 뒤 **명령 목표(+0x58)** 를 읽는다 → A-3 의 17·18, E12-1·3·6
+//   - 히드라 무적 비트(+0xDC), 프레임별 생성 수(히드라·옵저버), 나선 좌표 10점, 스캐너 이미지 칸(0x666458)
+//   - 화면 줄머리를 체크리스트 번호와 맞췄다(원래 맵의 [A-3]→[E12-4], [E12-4]→[E12-5] … 발견 ③ 과 같은 수정)
+import eudext.shape as shape;
+import eudext.spawn as spawn;
+import eudext.dbg as dbg;
+
+const cx = shape.CX(seed=1234);
+const _grid = cx.run("function EudextGrid(N, S, O) local P = {} for i = 0, N - 1 do for j = 0, N - 1 do P[#P + 1] = {O + S * i, O + S * j} end end local R = {#P} for k, v in ipairs(P) do R[k + 1] = v end return R end");
+const grid = cx.call("EudextGrid", 12, 360, 180);
+const hatch = cx.eval("CSMakePolygon(4, 32, 0, CS_Level('Polygon', 4, 5), 0)");
+const bhRing = cx.eval("CSMakeCircle(6, 24, 0, CS_Level('Circle', 6, 6), CS_Level('Circle', 6, 4))");
+const bhCore = cx.eval("CSMakeCircle(6, 24, 0, CS_Level('Circle', 6, 3), 0)");
+const bh = cx.call("CS_OverlapX", cx.call("CS_MoveXY", bhRing, -200, 0), cx.call("CS_MoveXY", bhCore, 200, 0));
+const bhFade = bh.sweep("right", px_per_cycle=32);
+const warp = cx.eval("CS_Rotate(CSMakePolygonX(4, 64, 45, CS_Level('PolygonX', 4, 3), 0), 90 - 26.57)");
+const ray = cx.call("CSMakeLine", 1, 32, 0, 11, 1);
+const marker = cx.call("CSMakeLine", 2, 48, 90, 5, 0);
+const ring = cx.call("CSMakeCircle", 6, 32, 0, 19, 0);
+
+const sp = spawn.Spawner(capacity=64, loc=26, loc2=27, default_target=23, default_owner=P2, debug=True);
+
+const U_LING = 37;
+const U_HYDRA = 38;
+const U_OBS = 84;
+const U_BOSS = 29;
+const U_MARK = 77;
+const P1_FRAME = 24;
+const PH2 = 360;
+const PH3 = 600;
+const PH4 = 780;
+const PH5 = 860;
+const PH6 = 920;
+const PH7 = 1000;
+const CHECKS = 11;
+const N1 = sp.preview_count(hatch, center=list(4050, 1200));
+const N2 = sp.preview_count(hatch, center=list(1500, 4050));
+const NBH = sp.preview_count(bh, center=list(2048, 2048));
+const HOME_X = 2048;      // 로케이션 23 (본진) 중심
+const HOME_Y = 3413;
+const WARP_X = 2731;      // 로케이션 14 중심 (A-3 의 17·18)
+const WARP_Y = 2048;
+const MARK_X = 3413;      // 로케이션 15 중심 (A-3 의 19)
+const MARK_Y = 2048;
+const PATROL_X = 2048;    // 로케이션 18 중심 (E12-6 순찰 목표)
+const PATROL_Y = 2731;
+const SCAN_IMG = 0x666458;
+
+const spiral = EUDArray(24);
+var frame, phase, checks, good;
+var homes, vis, parked, marks, boss, w8, w12, w2, w3;
+var posbad, homeE, hydE, bossE, broodE, brood, markSumX, markSumY, sk;
+var we8, we12, we2, we3, warpPosbad, hydSeqN, obsSeqN, hydCnt, obsCnt;
+const hydSeq = EUDArray(24);
+const obsSeq = EUDArray(48);
+
+function check(ok) {
+    checks += 1;
+    if (ok) { good += 1; }
+    else { printAll("\x08[E12] 점검 {} 다름 (프레임 {})", checks, frame); }
+}
+
+function posCheck(epd, x, y) {                   // 생성 순간 위치가 콜백 좌표와 같은가
+    const gx = wread_epd(epd + 10, 0);
+    const gy = wread_epd(epd + 10, 2);
+    if (gx != x) { posbad += 1; }
+    else if (gy != y) { posbad += 1; }
+}
+
+function CountHome(epd, unit, owner, x, y) {
+    homes += 1;
+    posCheck(epd, x, y);
+    if (homeE == 0) { homeE = epd; }
+}
+
+function CountVis(epd, unit, owner, x, y) {
+    vis += 1;
+    obsCnt += 1;
+}
+
+function Park(epd, unit, owner, x, y) {
+    parked += 1;
+    hydCnt += 1;
+    posCheck(epd, x, y);
+    if (hydE == 0) { hydE = epd; }
+    sp.ctx.set_invincible();
+}
+
+function WarpSeen(epd, unit, owner, x, y) {
+    if (unit == 8 && w8 == 0) { w8 = frame; we8 = epd; }
+    if (unit == 12 && w12 == 0) { w12 = frame; we12 = epd; }
+    if (unit == 2 && w2 == 0) { w2 = frame; we2 = epd; }
+    if (unit == 3 && w3 == 0) { w3 = frame; we3 = epd; }
+    const gx = wread_epd(epd + 10, 0);
+    if (gx != x) { warpPosbad += 1; }
+}
+
+function CountMark(epd, unit, owner, x, y) {
+    marks += 1;
+    markSumX += x;
+    markSumY += y;
+}
+
+function CountBoss(epd, unit, owner, x, y) {
+    boss += 1;
+    bossE = epd;
+    dbg.mark("spawn.A-3.boss_x", x, suite="spawn");
+    dbg.mark("spawn.A-3.boss_y", y, suite="spawn");
+}
+
+function CountBrood(epd, unit, owner, x, y) {
+    brood += 1;
+    if (broodE == 0) { broodE = epd; }
+}
+
+function Spiral(epd, unit, owner, x, y) {        // E12-5: 전역 회전 나선 좌표 (중심 상대)
+    if (sk < 20) {
+        spiral[sk] = x - 2048;
+        spiral[sk + 1] = y - 2048;
+        sk += 2;
+    }
+}
+
+function target(epd) {                           // 명령 목표(+0x58) 좌표 두 개
+    return wread_epd(epd + 22, 0), wread_epd(epd + 22, 2);
+}
+
+function onPluginStart() {
+    sp.rtype("Nothing");
+    sp.rtype_func("Home", sp.builtin.attack_default, CountHome);
+    sp.rtype_func("Vis", sp.builtin.vision, CountVis);
+    sp.rtype_func("Park", Park);
+    sp.rtype_func("Warp", WarpSeen);
+    sp.rtype_func("Mark", CountMark);
+    sp.rtype_func("Boss", CountBoss);
+    sp.rtype_func("Skill", sp.builtin.skill_unit, CountBrood);
+    sp.rtype_func("Spiral", Spiral);
+    dbg.snapshot("spawn.E12-5.spiral", spiral, 20, every=0, suite="spawn");
+    dbg.snapshot("spawn.E12-2.hydra", hydSeq, 24, every=0, suite="spawn");
+    dbg.snapshot("spawn.E12-2.obs", obsSeq, 48, every=0, suite="spawn");
+}
+
+function seqFlush() {                            // 프레임별 생성 수를 빈 프레임 없이 이어 적는다 (E12-2)
+    if (hydCnt >= 1 && hydSeqN < 24) {
+        hydSeq[hydSeqN] = hydCnt;
+        hydSeqN += 1;
+    }
+    hydCnt = 0;
+    if (obsCnt >= 1 && obsSeqN < 48) {
+        obsSeq[obsSeqN] = obsCnt;
+        obsSeqN += 1;
+    }
+    obsCnt = 0;
+}
+
+function step(f) {
+    const sf = f - 899;
+    frame = sf;
+    if (sf == 1) {
+        phase = 1;
+        setcurpl(0);
+        CenterView("Location 13");
+        sp.push(101, grid, owner=P1, center=list(0, 0), rtype="Nothing");
+        printAll("\x07[E12-0] eudext.spawn 확인 — 적은 P2(주황). 약 42초 동안 단계 7개");
+    }
+    // ---------------------------------------------------------------- E12-1 해처리 건작
+    if (sf == P1_FRAME) {
+        sp.anchor.x = 4050;
+        sp.anchor.y = 1200;
+        sp.push(U_LING, hatch, rtype="Home");
+        printAll("\x07[E12-1] 오른쪽 끝(4050, 1200)과 아래 끝(1500, 4050)에 저글링 네모 — {}마리·{}마리 (기대)", N1, N2);
+    }
+    if (sf == P1_FRAME + 1) {
+        sp.anchor.x = 1500;
+        sp.anchor.y = 4050;
+        sp.push(U_LING, hatch, rtype="Home");
+    }
+    if (sf == P1_FRAME + 3) {
+        if (homes == N1 + N2) { check(1); } else { check(0); }
+        if (sp.overflow == 0) { check(1); } else { check(0); }
+        printAll("\x07[E12-1] 만든 저글링 {} (기대 {}), 넘침 {} (기대 0)", homes, N1 + N2, sp.overflow);
+        dbg.mark("spawn.E12-1.homes", homes, suite="spawn");
+        dbg.mark("spawn.E12-1.expect", N1 + N2, suite="spawn");
+        dbg.mark("spawn.E12-1.overflow", sp.overflow, suite="spawn");
+        dbg.check("spawn.E12-1.count", homes == N1 + N2, suite="spawn");
+        dbg.check("spawn.E12-1.overflow", sp.overflow == 0, suite="spawn");
+    }
+    if (sf == P1_FRAME + 20) {                   // 몇 프레임 뒤 명령 목표 (SC 가 명령을 처리한 뒤)
+        const tx, ty = target(homeE);
+        dbg.mark("spawn.E12-1.order_x", tx, suite="spawn");
+        dbg.mark("spawn.E12-1.order_y", ty, suite="spawn");
+        dbg.check("spawn.E12-1.order", tx == HOME_X && ty == HOME_Y ? 1 : 0, suite="spawn");
+        dbg.mark("spawn.E12-1.posbad", posbad, suite="spawn");
+        dbg.check("spawn.E12-1.pos", posbad == 0, suite="spawn");
+        printAll("\x07[E12-1] 저글링 명령 목표 ({}, {}) — 로케이션 23 (2048, 3413) 이어야 함, 위치 불일치 {} (0)", tx, ty, posbad);
+    }
+    // ---------------------------------------------------------------- E12-2 블랙홀 건작
+    if (sf == PH2) {
+        phase = 2;
+        RemoveUnit("Zerg Zergling", P2);
+        CenterView("Location 13");
+        sp.push(U_HYDRA, bhFade, center=list(2048, 2048), rtype="Park");
+        printAll("\x07[E12-2] 가운데: 왼쪽 고리 + 오른쪽 구멍이 왼쪽 끝부터 한 열(32px)씩 매 프레임 (18열, 기대)");
+        printAll("\x07[E12-2] 히드라 {}마리는 무적으로 서 있다가 약 6초 뒤 풀려 본진으로 어택 (기대)", NBH);
+    }
+    if (sf == PH2 || sf == PH2 + 18 || sf == PH2 + 36) {
+        sp.push(U_OBS, bhFade, center=list(2048, 2048), rtype="Vis");
+    }
+    if (sf == PH2 + 12) {
+        if (sp.live >= 2) { check(1); } else { check(0); }
+        dbg.mark("spawn.E12-2.live_at_gap", sp.live, suite="spawn");
+    }
+    if (sf == PH2 + 60) {
+        if (parked == NBH) { check(1); } else { check(0); }
+        if (vis == NBH * 3) { check(1); } else { check(0); }
+        const inv = dwread_epd(hydE + 55) & 0x04000000;
+        dbg.mark("spawn.E12-2.parked", parked, suite="spawn");
+        dbg.mark("spawn.E12-2.vis", vis, suite="spawn");
+        dbg.mark("spawn.E12-2.inv1", inv, suite="spawn");
+        dbg.check("spawn.E12-2.count", parked == NBH && vis == NBH * 3 ? 1 : 0, suite="spawn");
+        dbg.check("spawn.E12-2.inv", inv != 0, suite="spawn");
+    }
+    if (sf == PH2 + 150) {
+        SetInvincibility(Disable, "Zerg Hydralisk", P2, "Anywhere");
+        Order("Zerg Hydralisk", P2, "Anywhere", Attack, "Location 23");
+        printAll("\x07[E12-2] 히드라 풀림 — 본진으로 어택 (무적이 풀렸는지 확인)");
+    }
+    if (sf == PH2 + 155) {
+        const inv0 = dwread_epd(hydE + 55) & 0x04000000;
+        dbg.mark("spawn.E12-2.inv0", inv0, suite="spawn");
+        dbg.check("spawn.E12-2.inv_off", inv0 == 0, suite="spawn");
+    }
+    // ---------------------------------------------------------------- E12-3 보스 워프 + A-3
+    if (sf == PH3) {
+        phase = 3;
+        RemoveUnit("Zerg Hydralisk", P2);
+        RemoveUnit("Protoss Observer", P2);
+        sp.job(center="Location 13", order=spawn.attack("Location 14"), rtype="Warp").layer(8, warp).layer(12, warp).layer(2, warp).layer(3, warp).push();
+        sp.push(U_MARK, marker, center=15, rtype="Mark");
+        printAll("\x07[E12-3] 가운데(로케이션 13)에 레이스 → 배틀 → 벌처 → 골리앗이 2프레임 간격, 모두 로케이션 14 로 어택 (기대)");
+        printAll("\x07[E12-4] 오른쪽 끝 로케이션 15 (3413, 2048)에 영웅 질럿(피닉스) 5기 가로줄 (기대)");
+    }
+    if (sf == PH3 + 10) {
+        sp.spawn_now(U_BOSS, at="Location 14", rtype="Boss");
+        printAll("\x07[E12-3] 영웅 배틀(노라드 II) 한 기가 로케이션 14 (2731, 2048) 에 — 가운데(13)면 다름 (기대)");
+    }
+    if (sf == PH3 + 20) {
+        if (w12 - w8 == 2 && w2 - w12 == 2 && w3 - w2 == 2) { check(1); } else { check(0); }
+        if (boss == 1) { check(1); } else { check(0); }
+        if (marks == 5) { check(1); } else { check(0); }
+        printAll("\x07[E12-3] 층 프레임 {} {} {} {} (2씩 커지면 정상)", w8, w12, w2, w3);
+        const tx, ty = target(we8);
+        dbg.mark("spawn.A-3.warp_x", tx, suite="spawn");
+        dbg.mark("spawn.A-3.warp_y", ty, suite="spawn");
+        dbg.check("spawn.A-3.warp", tx == WARP_X && ty == WARP_Y ? 1 : 0, suite="spawn");
+        const bx = wread_epd(bossE + 10, 0);
+        const by = wread_epd(bossE + 10, 2);
+        dbg.mark("spawn.A-3.boss_pos_x", bx, suite="spawn");
+        dbg.mark("spawn.A-3.boss_pos_y", by, suite="spawn");
+        dbg.mark("spawn.E12-3.w8", w8, suite="spawn");
+        dbg.mark("spawn.E12-3.step12", w12 - w8, suite="spawn");
+        dbg.mark("spawn.E12-3.step2", w2 - w12, suite="spawn");
+        dbg.mark("spawn.E12-3.step3", w3 - w2, suite="spawn");
+        dbg.mark("spawn.E12-3.boss", boss, suite="spawn");
+        dbg.mark("spawn.E12-3.marks", marks, suite="spawn");
+        dbg.mark("spawn.E12-3.warp_posbad", warpPosbad, suite="spawn");
+        dbg.mark("spawn.E12-4.mark_x", markSumX / 5, suite="spawn");
+        dbg.mark("spawn.E12-4.mark_y", markSumY / 5, suite="spawn");
+        dbg.check("spawn.E12-3.layers", w12 - w8 == 2 && w2 - w12 == 2 && w3 - w2 == 2 ? 1 : 0, suite="spawn");
+        dbg.check("spawn.E12-3.boss", boss == 1 && marks == 5 ? 1 : 0, suite="spawn");
+        dbg.check("spawn.E12-3.warp_pos", warpPosbad == 0, suite="spawn");
+        printAll("\x07[E12-4] 마커 5기 가운데 ({}, {}) — 로케이션 15 (3413, 2048) 이어야 함", markSumX / 5, markSumY / 5);
+    }
+    // ---------------------------------------------------------------- E12-5 전역 회전 (화면 줄머리 [E12-5])
+    if (sf == PH4) {
+        phase = 4;
+        RemoveUnit("Terran Wraith", P2);
+        RemoveUnit("Terran Battlecruiser", P2);
+        RemoveUnit("Terran Vulture", P2);
+        RemoveUnit("Terran Goliath", P2);
+        sp.push("Zerg Scourge", ray, center=list(2048, 2048), rotate=sp.GLOBAL, lm=1, delay=3, rtype="Spiral");
+        printAll("\x07[E12-5] 가운데에 스커지가 3프레임마다 한 기씩 — 12시에서 시계 방향 나선 (기대)");
+    }
+    if (sf >= PH4 && sf < PH5) { sp.rotation += 12; }
+    // ---------------------------------------------------------------- E12-6 스킬 유닛 (화면 줄머리 [E12-6])
+    if (sf == PH5) {
+        phase = 5;
+        sp.push("Zerg Broodling", ring, center="Location 8", order=spawn.patrol("Location 18"), rtype="Skill");
+        printAll("\x07[E12-6] 위 가운데(로케이션 8)에 브루들링 원 → 아래(로케이션 18) 순찰, 약 0.6초 만에 사라짐 (기대)");
+    }
+    if (sf == PH5 + 5) {
+        const tx, ty = target(broodE);
+        dbg.mark("spawn.E12-6.brood", brood, suite="spawn");
+        dbg.mark("spawn.E12-6.order_x", tx, suite="spawn");
+        dbg.mark("spawn.E12-6.order_y", ty, suite="spawn");
+        dbg.check("spawn.E12-6.order", tx == PATROL_X && ty == PATROL_Y ? 1 : 0, suite="spawn");
+    }
+    if (sf == PH5 + 30) {
+        dbg.check("spawn.E12-6.gone", Command(P2, Exactly, 0, "Zerg Broodling"), suite="spawn");
+    }
+    // ---------------------------------------------------------------- E12-7 스캔 이펙트 (화면 줄머리 [E12-7])
+    if (sf == PH6) {
+        phase = 6;
+        RemoveUnit("Zerg Scourge", P2);
+        sp.scan_effect(ring, 429, color=16, center="Location 12");
+        printAll("\x07[E12-7] 왼쪽(로케이션 12)에 스캔 이펙트 원(이미지 429, 색 16) — 스캐너 유닛은 남지 않음 (기대)");
+    }
+    if (sf == PH6 + 10) {
+        const img = wread(SCAN_IMG);
+        dbg.mark("spawn.E12-7.image", img, suite="spawn");
+        dbg.check("spawn.E12-7.image", img == 546, suite="spawn");
+        dbg.check("spawn.E12-7.gone", Command(P2, Exactly, 0, "Scanner Sweep"), suite="spawn");
+    }
+    sp.tick();
+    seqFlush();
+    // ---------------------------------------------------------------- E12-8 정리 (화면 줄머리 [E12-8])
+    if (sf == PH7) {
+        phase = 7;
+        if (sp.overflow == 0) { check(1); } else { check(0); }
+        if (sp.live == 0) { check(1); } else { check(0); }
+        if (homes == N1 + N2 && parked == NBH) { check(1); } else { check(0); }
+        printAll("\x07[E12-8] 점검 {} / {} (같으면 정상, 기대 {}), 남은 작업 {} (0)", good, checks, CHECKS, sp.live);
+        dbg.result("spawn.E12-8.all", good, checks, suite="spawn");
+        dbg.mark("spawn.E12-8.live", sp.live, suite="spawn");
+        dbg.mark("spawn.E12-5.n", sk / 2, suite="spawn");
+        dbg.capture("spawn.E12-5.spiral");
+        dbg.capture("spawn.E12-2.hydra");
+        dbg.capture("spawn.E12-2.obs");
+        dbg.mark("spawn.E12-2.hydra_n", hydSeqN, suite="spawn");
+        dbg.mark("spawn.E12-2.obs_n", obsSeqN, suite="spawn");
+    }
+}
+
+function cleanup() {                             // 정리(1910): P2 유닛 전부, 로케이션 26·27 되돌림 (P1 리빌러는 남김)
+    RemoveUnit("Any unit", P2);
+    setloc(26, 0, 0);
+    setloc(27, 0, 0);
+}
+
+function clean_check() {
+    dbg.check("aa.clean.spawn", Command(P2, Exactly, 0, "Any unit"));
+}

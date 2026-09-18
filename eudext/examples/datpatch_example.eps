@@ -1,0 +1,33 @@
+// eudext.datpatch 예제 (epScript)
+// - 모듈 함수 호출은 f_ 가 붙어 번역된다: dat.unit(…) → dat.f_unit(…)
+// - 파이썬 키워드 인자는 그대로 된다: set(maxHp=…)
+// - 리스트 리터럴 [a, b] 는 EUDArray 로 번역되므로 묶음 값은 dat.values(a, b) 또는 epScript list(a, b) 로 넘긴다
+//   (list(a, b) → 파이썬 리스트 FlattenList([a, b]). py_list(a, b) 는 파이썬 list(a, b) 가 되어 실행 오류)
+// - with 가 없으므로 begin_/end_ 짝을 쓴다
+import eudext.datpatch as dat;
+
+// ── 시작 1회 목록: 모듈을 불러올 때 선언된다 (번호·값은 상수) ──
+dat.unit("Terran Marine").set(maxHp=80 * 256, armor=2);
+dat.unit(208).flags(Flyer=true, Invincible=true);
+dat.weapon(1).splash(7, 14, 21);
+dat.player_unit_enable(5, players=list(0, 1, 2), value=1);
+dat.tep.SetUnitsDatX(162, AdvFlag=dat.values(0x400200, 0x480200), BdDimX=1, BdDimY=1, HP=5000);
+dat.tep.SetWeaponsDatX(3, DmgBase=75, Splash=dat.values(5, 10, 15));
+dat.every_frame().unit(1).set(requirementOffset=0);
+
+var hits;
+
+function afterTriggerExec() {
+    if (hits == 100) {
+        // 조건부 목록: 파이썬 리스트를 받아 DoActions 로 낸다
+        dat.begin_actions();
+        dat.weapon(128).set(damage=65535, removeAfter=64);
+        const acts = dat.end_actions();
+        DoActions(acts);
+    }
+    // 같은 프레임 안에서만 바꾸고 되돌리기 (변수 번호·값)
+    dat.begin_temporary();
+    dat.now.weapon(hits % 130).set(damage=hits);
+    dat.end_temporary();
+    hits += 1;
+}

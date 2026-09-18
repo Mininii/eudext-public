@@ -1,0 +1,35 @@
+// eudext.strdesign 예제 (epScript) — 컴파일 시점 색 문자열 꾸미기 (DESIGN 4.7, docs/spec/S7_strdesign.md)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/strdesign_example.eds --work <작업 폴더>
+//
+// - 모듈 함수는 f_ 로 번역된다: sd.design(…) → sd.f_design(…), sd.set_style → sd.f_set_style.
+//   CtrigAsm 이름 별칭(sd.StrDesign …)은 대문자라 그대로 불린다.
+// - 판은 맵 설정 맨 앞에서 한 번 정한다. 전역에서는 선언만 되므로 const 에 받는다.
+// - 결과는 파이썬 문자열 상수다(트리거 0). 전역 const 에 담아 printAll·DisplayText 에 넣는다.
+import eudext.strdesign as sd;
+
+const style = sd.set_style("memory");                         // MSF_Memory_2 판 (\r\r·【 】)
+const title = sd.design("\x04[\x1f보스\x04] 등장");            // StrDesign — \r\r 로 시작
+const center = sd.design_x("\x1DExtra Boss\x04 출현");          // StrDesignX — \r\r + \x13
+const marked = "\r\r!H" + sd.StrDesignX2("\x04채팅 효과 줄");   // StrDesignX2 + 채팅 효과 표식 (S6)
+const other = sd.design_x("\x04theSeed 모양", style="seed", lead=false);   // 다른 판을 한 번만
+const legacy = sd.StrDesign(5);                                // 별칭은 숫자를 Lua 표기로 받는다 ("5")
+const pp = sd.parts();                                         // StrD[1], StrD[2] (memory 판)
+const items = sd.wrap("\x04남은 적", center=true);              // [머리, "…", 꼬리] — display 원소 목록용
+var shown;
+
+function announce(n) {
+    printAll(title);
+    DisplayText(center);
+    DisplayText(marked);
+    DisplayText(other);
+    DisplayText(legacy);
+    DisplayText(items[0] + items[1] + items[2]);
+    printAll("{}\x04남은 적 {}{}", pp[0], n, pp[1]);            // 실행 중 값을 장식 사이에 (원본 {StrD[1], V, StrD[2]} 모양)
+}
+
+function afterTriggerExec() {
+    if (shown == 0) {
+        announce(3);
+        shown = 1;
+    }
+}

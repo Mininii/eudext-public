@@ -1,0 +1,34 @@
+// auto_all phase 20 `visual`(선택, 프레임 6450~) — 화면만 보는 항목을 6초마다 한 쪽씩 돌린다 (D5-2~8, D6-1~5, E6-7, E6-6)
+// 자동 판정은 없다(사람 눈). 자동 판정 도구는 phase 18(또는 19) 뒤에 이미 결과를 냈고, 이 구간은 지켜보는 사람 몫이다.
+// 쪽: 0~6 numfmt(D5-2~D5-8) → 7~11 strdesign(D6-1~D6-5) → 12 display E6-7 → 13 display E6-6(임무 목표)
+import numfmt_ingame as nfm;
+import strdesign_ingame as sdm;
+import aa_display as disp;
+import eudext.dbg as dbg;
+
+var vpage;
+const w = dbg.watch("aa.visual.page", vpage);
+
+function show(p) {
+    if (p <= 6) { nfm.show(p + 1); }
+    else if (p == 7) { sdm.page1(); }
+    else if (p == 8) { sdm.page2(); }
+    else if (p == 9) { sdm.page3(); }
+    else if (p == 10) { sdm.page4(); }
+    else if (p == 11) { sdm.page5(); }
+    else if (p == 12) { disp.page5(); }
+    else { disp.page8(); }
+}
+
+function step(f) {
+    const vf = f - 6449;
+    if (vf == 1) {
+        printAll("\x07[화면 확인] \x04이제부터 6초마다 한 쪽씩 돕니다 — D5-2~8(서식), D6-1~5(장식), E6-7(0x0D 폭), E6-6(임무 목표)");
+        printAll("\x07[화면 확인] \x04자동 판정은 끝났습니다. 이 쪽들은 눈으로 보고 알려 주세요 (한 바퀴 약 84초, 계속 돕니다)");
+    }
+    if (vf >= 1) {
+        vpage = (vf / 144) % 14;
+        if (vf % 144 == 1) { show(vpage); }
+        disp.objectives();
+    }
+}

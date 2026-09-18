@@ -1,0 +1,108 @@
+// eudext.cmp 예제 (epScript) — 안전 비교와 부호 있는 비교 (DESIGN 4.2)
+//
+// 불러오기: import eudext.cmp as cmp;   (eds 맨 앞에 eudext 부트 플러그인이 있어야 한다 — cmp_example.eds)
+// 번역: cmp.lt(a, b) → cmp.f_lt(a, b)   (모듈 함수에는 f_ 가 붙는다. cmp 는 f_ 이름으로 정의돼 있다)
+//
+// 주의
+// - 조건을 값으로 돌려줄 때는 `return cmp.lt(a, b) ? 1 : 0;`
+//   (`return cmp.lt(a, b);` 와 `return a < b;` 는 빌드 오류)
+// - 조건을 var 에 담을 수도 없다: `var r = cmp.lt(a, b);` → `var r = cmp.lt(a, b) ? 1 : 0;`
+// - 루프 조건은 조건 자리에서 부른다: `while (cmp.lt(i, n))` — 돌 때마다 값을 다시 읽는다
+// - 부호 없는 함수에서 음수 상수는 2의 보수다: cmp.lt(x, -1) 은 cmp.lt(x, 0xFFFFFFFF) 와 같다
+// - 부호 있는 값(0x80000000 이상 = 음수)은 cmp.sge / sle / sgt / slt / between(…, signed=True) 로 비교한다
+import eudext.cmp as cmp;
+
+// 부호 없는 a < b (b = 0 이어도 정확)
+function lt01(a, b) {
+    return cmp.lt(a, b) ? 1 : 0;
+}
+
+// 부호 있는 a >= b
+function sge01(a, b) {
+    return cmp.sge(a, b) ? 1 : 0;
+}
+
+// 부호 있는 값을 [lo, hi] 로 자른다
+function clamp_signed(v, lo, hi) {
+    if (cmp.slt(v, lo)) {
+        return lo;
+    } else if (cmp.sgt(v, hi)) {
+        return hi;
+    }
+    return v;
+}
+
+// -16 <= dx <= 16 이고 -16 <= dy <= 16 인가 (부호 있음)
+function in_box(dx, dy) {
+    if (cmp.between(dx, -16, 16, signed=True) && cmp.between(dy, -16, 16, signed=True)) {
+        return 1;
+    }
+    return 0;
+}
+
+// !cmp.ne(a, b) 는 a == b 와 같다 (부정은 분기로 처리된다)
+function same01(a, b) {
+    if (!cmp.ne(a, b)) {
+        return 1;
+    }
+    return 0;
+}
+
+// 루프 조건: 돌 때마다 다시 계산된다
+function count_up(n) {
+    var i = 0;
+    while (cmp.lt(i, n)) {
+        i += 1;
+    }
+    return i;
+}
+
+// 16비트 부호 있는 필드 읽기 (CtrigAsm f_SHRead 대체 — 진짜 16비트 필드용)
+function read_i16(epd, subp) {
+    return cmp.wread_signed(epd, subp);
+}
+
+// 1바이트 부호 있는 필드 읽기
+function read_i8(epd, subp) {
+    return cmp.bread_signed(epd, subp);
+}
+
+const buf = Db(8);   // 읽기 점검용 8바이트
+
+// 인게임 점검: 경계값 비교 15개가 모두 맞으면 15 를 돌려준다 (에뮬레이터 시험 t_cmp.py 도 같은 값을 본다)
+// 함수 인자는 변수라서 안쪽 cmp 호출은 "변수끼리" 경로(조건 칸 채우기)를 탄다.
+function selftest() {
+    var n = 0;
+    n += lt01(0, 1);
+    n += lt01(1, 0) ? 0 : 1;
+    n += lt01(0xFFFFFFFE, 0xFFFFFFFF);
+    n += lt01(0xFFFFFFFF, 0) ? 0 : 1;
+    n += sge01(0, 0xFFFFFFFF);                     // 0 >= -1
+    n += sge01(0x80000000, 0x7FFFFFFF) ? 0 : 1;    // -2^31 >= 2^31-1 은 거짓
+    n += same01(0xFFFFFFFF, 0xFFFFFFFF);
+    n += same01(0, 0xFFFFFFFF) ? 0 : 1;
+    n += in_box(0xFFFFFFF0, 16);                   // (-16, 16)
+    n += in_box(17, 0) ? 0 : 1;
+    n += cmp.eq(count_up(3), 3) ? 1 : 0;
+    n += cmp.eq(clamp_signed(0xFFFFFC18, -100, 100), -100) ? 1 : 0;   // -1000 → -100
+    dwwrite_epd(EPD(buf), 0x0080FF7F);
+    n += cmp.eq(read_i16(EPD(buf), 0), -129) ? 1 : 0;       // 바이트 7F FF → 0xFF7F
+    n += cmp.eq(read_i16(EPD(buf), 1), 0xFFFF80FF) ? 1 : 0; // 바이트 FF 80 → 0x80FF
+    n += cmp.eq(read_i8(EPD(buf), 2), -128) ? 1 : 0;        // 바이트 80
+    return n;
+}
+
+var tick, hp;
+
+function afterTriggerExec() {
+    tick += 1;
+    // 0 에서 3 을 빼면 0xFFFFFFFD(= -3) — 부호 있는 비교로 [-100, 100] 에 자른다
+    hp = clamp_signed(hp - 3, -100, 100);
+    if (cmp.sle(hp, -100) && cmp.ge(tick, 24)) {
+        hp = 100;
+    }
+    if (tick == 24) {
+        const n = selftest();
+        printAll("\x07[eudext.cmp] 점검 {} / 15 (15 이면 정상)", n);
+    }
+}

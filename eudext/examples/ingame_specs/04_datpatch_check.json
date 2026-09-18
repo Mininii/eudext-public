@@ -1,0 +1,156 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "04_datpatch_check",
+ "title": "dat 패치·피해 배율 표 (B15-1·3·4·10)",
+ "timeout_s": 300,
+ "items": [
+  {
+   "kind": "group",
+   "id": "B15-1",
+   "items": [
+    {
+     "kind": "check",
+     "name": "m04.B15-1.found"
+    },
+    {
+     "kind": "mark",
+     "name": "m04.B15-1.start",
+     "in_": [
+      5331872,
+      5331868
+     ]
+    },
+    {
+     "kind": "dwords",
+     "name": "m04.B15-1.dump"
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch_mem m04.ratio = 0x515B80:32 (피해 배율 표 근처, 미러 밖 — 게임 시작 뒤 한 번 덤프)"
+    ],
+    "expect": "128·192·256(폭발형 × 소형·중형·대형)이 0x515BA0 에서 시작하면 0x515B88 이 맞음, 0x515B9C 에서 시작하면 0x515B84(eudplib 주석)가 맞음. 시작 주소를 기록",
+    "done_marker": "통합 맵: aa.datpatch.end > 0 (phase 5 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m04.done (frame >= 24, 시작 목록 적용 뒤)",
+    "category": "AUTO",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "04 datpatch_check",
+    "bundle": "auto_all",
+    "notes": "발견: 04 맵은 아무 줄도 띄우지 않는다",
+    "instrument": "datpatch_example.eps 에는 표시 코드가 없다(체크리스트 방법의 '표시' 가 맵에 빠져 있음 — 지금 04 맵으로는 화면으로도 못 봄). dbg.snap_mem('m04.ratio', 0x515B80, 32) 추가"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "B15-3",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m04.B15-3.found",
+     "equals": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m04.B15-3.hp",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m04.B15-3.max",
+     "equals": 25600
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m04.pre_marine_hp[프레임 1..30] (미리 놓인 마린 CUnit +0x08)"
+    ],
+    "expect": "사실 기록: 시작 직후 40/80(현재 HP 그대로) 인지 80/80 인지",
+    "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 30",
+    "category": "AUTO",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "04 datpatch_check",
+    "bundle": "auto_all (기준 맵에 파이어뱃 한 기)",
+    "extra": [
+     "EXTERNAL"
+    ],
+    "instrument": "기준 맵에 미리 놓인 마린이 없다 → 마린을 놓은 기준 맵 사본(SCMDraft 또는 chk 편집 스크립트) + 그 유닛 HP 감시"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "B15-4",
+   "items": [
+    {
+     "kind": "check",
+     "name": "m04.B15-4.keep"
+    },
+    {
+     "kind": "mark",
+     "name": "m04.B15-4.time",
+     "equals": 777
+    },
+    {
+     "kind": "mark",
+     "name": "m04.B15-4.supply",
+     "equals": 7
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch_mem units.dat timeCost·supplyUsed 칸 (바꾼 유닛)"
+    ],
+    "expect": "시작 목록으로 바꾼 값이 몇 분 뒤에도 그대로(게임이 되돌리면 기록). 저장·불러오기 뒤 값은 사람이 저장/불러오기를 한 뒤 자동 비교",
+    "done_marker": "통합 맵: aa.datpatch.end > 0 (phase 5 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): 게임 프레임 >= 2880 (2분)",
+    "category": "AUTO",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "04 datpatch_check",
+    "bundle": "auto_all (시간 부분; 저장·불러오기 부분은 별도)",
+    "extra": [
+     "AUTO_ASSIST"
+    ],
+    "instrument": "예제가 timeCost·supplyUsed 를 바꾸지 않는다 → 시작 목록에 추가 + 칸 감시"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "B15-10",
+   "items": [
+    {
+     "kind": "check",
+     "name": "m04.B15-10.req"
+    },
+    {
+     "kind": "mark",
+     "name": "m04.B15-10.req0",
+     "equals": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch_mem units.dat requirementOffset 칸(유닛 0·1)"
+    ],
+    "expect": "버튼 활성 동작이 기존 맵과 같음(눈). 칸 값이 매 프레임 0 인지는 자동",
+    "done_marker": "통합 맵: aa.datpatch.end > 0 (phase 5 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 24",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "04 datpatch_check",
+    "bundle": "auto_all",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "칸 감시"
+   }
+  }
+ ],
+ "done": [
+  "done"
+ ]
+}

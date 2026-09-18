@@ -1,0 +1,101 @@
+// 27 X_limit — 유닛 한도 세션 (튕길 위험, 사용자가 따로 연다): B10-1(b)·B10-8(한도)·B10-9·D14-3·D14-2(출발=목표)
+// 03 units_ingame 의 t9(유닛 칸 1700 채우기)와 10 bullet_check 의 d3(칸 가득 총알 0 반환)을 떼어 온 맵이다.
+// 통합 맵(auto_all)에는 넣지 않았다 — 한 프레임에 약 5만 트리거 + 유닛 1,600여 마리라 멈추면 뒤 점검을 다 잃는다.
+// 빌드: python eudext/tools/ingame_maps.py --out <폴더> X_limit
+// 혼자 연다. 약 10초 안에 끝난다. 멈추거나 튕기면 그 자체가 결과다(브리지가 어디까지 갔는지 남긴다).
+import eudext.units as units;
+import eudext.bullet as bullet;
+import eudext.dbg as dbg;
+
+const kA = bullet.BulletKind(unit=208, weapon=127, flingy=106, dat=bullet.BulletDat(sprite=344));
+kA.install();
+bullet.setup(loc="Location 0");
+
+const data = units.UnitData(alive="byte");
+const u = units.Capture();
+var frame, fillMade, okv, deadSeen, dyingLimit, prevDead, e1, e2, e3, zeroShots, sameFacing, bfill;
+
+function head() {
+    return units.index(dwread(0x628438));
+}
+
+function t9() {                                  // B10-1 (b): 유닛 한도까지 채운 뒤의 ok·ptr·칸 번호
+    fillMade = 0;
+    while (fillMade < 1700) {
+        u.begin();
+        CreateUnit(1, "Terran Marine", "Anywhere", P1);
+        u.end();
+        if (u.failed) { break; }
+        fillMade += 1;
+    }
+    if (u.ok) { okv = 1; } else { okv = 0; }
+    printAll("\x07[T9] 채움 {}마리, 마지막 ok={}(0) ptr={}(0) idx={}(1700) 머리={}(1700)", fillMade, okv, u.ptr,
+        u.index, head());
+    dbg.mark("xl.t9.fill", fillMade);
+    dbg.mark("xl.t9.ok", okv);
+    dbg.mark("xl.t9.ptr", u.ptr);
+    dbg.mark("xl.t9.idx", u.index);
+    dbg.mark("xl.t9.head", head());
+}
+
+function d3() {                                  // D14-3: 칸이 가득할 때 bullet·bullet_to·bullet_at 이 0 을 돌려주는가
+    bfill = 0;
+    while (bfill < 1700) {
+        u.begin();
+        CreateUnit(1, "Map Revealer", "Anywhere", P2);
+        u.end();
+        if (u.failed) { break; }
+        bfill += 1;
+    }
+    e1 = bullet.bullet(kA, P1, 2048, 2048, 0);
+    e2 = bullet.bullet_to(kA, P1, 2048, 2048, 100, 100);
+    e3 = bullet.bullet_at(kA, P1, "Location 0", 0);
+    if (e1 == 0 && e2 == 0 && e3 == 0) { zeroShots = 1; }
+    printAll("\x07[D14-3] 유닛 칸 가득(P2 리빌러 {}개): bullet={}(0) bullet_to={}(0) bullet_at={}(0) — 튕기지 않고 이 줄이 보이면 OK",
+        bfill, e1, e2, e3);
+    dbg.mark("xl.D14-3.fill", bfill);
+    dbg.mark("xl.D14-3.e1", e1);
+    dbg.mark("xl.D14-3.e2", e2);
+    dbg.mark("xl.D14-3.e3", e3);
+    dbg.check("xl.D14-3.zero", zeroShots == 1);
+    RemoveUnit("Map Revealer", P2);
+}
+
+function dsame() {                               // D14-2 의 "출발 = 목표" 한 발 (0 벡터 — 튕기지 않는가)
+    const e = bullet.bullet_to(kA, P1, 2600, 2900, 2600, 2900);
+    if (e != 0) { sameFacing = bread_epd(e + 8, 1); } else { sameFacing = 999; }
+    printAll("\x07[D14-2] 출발 = 목표 한 발: facing={} (128 기대), epd={} — 튕기지 않으면 OK", sameFacing, e);
+    dbg.mark("xl.D14-2.same", sameFacing);
+    dbg.mark("xl.D14-2.epd", e);
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        printAll("\x07[X_limit] 유닛 한도 세션 — 지금부터 유닛 칸을 가득 채웁니다(멈출 수 있습니다). 약 10초");
+    }
+    if (frame == 4) { t9(); }
+    if (frame == 8) { KillUnit("Terran Marine", P1); }
+    foreach (nu : units.new_units(clear=data)) {
+        data.alive[nu.index] = 1;
+    }
+    prevDead = deadSeen;
+    foreach (d : units.dying(data, key="alive", limit=40)) {
+        deadSeen += 1;
+    }
+    if (frame >= 9 && frame <= 60) {              // B10-8 (한도): 프레임마다 40씩 늘다 멈추는가
+        const step = deadSeen - prevDead;
+        if (step > dyingLimit) { dyingLimit = step; }
+    }
+    if (frame == 62) {
+        printAll("\x07[T10] 죽음 알림: 한 프레임 최대 {}개(40 기대), 합계 {}", dyingLimit, deadSeen);
+        dbg.mark("xl.dying.limit", dyingLimit);
+        dbg.mark("xl.dying.total", deadSeen);
+    }
+    if (frame == 90) { d3(); }
+    if (frame == 120) { dsame(); }
+    if (frame == 150) {
+        dbg.mark("done");
+        printAll("\x07[X_limit] 끝 — 화면 줄과 (멈췄다면) 어디서 멈췄는지 알려 주세요");
+    }
+}

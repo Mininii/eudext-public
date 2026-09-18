@@ -1,0 +1,31 @@
+:: eudext 어셈블러 하이브리드 eds 틀 (euddraft 0.11.0.1)
+:: CtrigAsm(TEP) 트리거는 STRCtrig 어셈블러로 싣고, 같은 맵에 eudext 코드를 얹는다. 설명은 hybrid/README.md.
+:: <...> 를 자기 경로로 바꾼다. eds 줄 끝에는 주석을 달 수 없다(euddraft 가 값의 일부로 읽는다). 주석 줄은 :: 로 시작한다.
+
+[main]
+input : <TEP 로 컴파일한 맵>.scx
+output : <출력 맵>.scx
+
+:: 1. eudext 부트 - eudext 를 쓰는 플러그인·eps 보다 앞에 둔다
+[<eudext 저장소>\eudext\boot.py]
+EudextRoot : <eudext 저장소>
+Preload : players
+:: lupa 를 쓰는 모듈(shape 등)을 쓸 때만 아래 줄을 켜고 그 모듈을 Preload 에 더한다
+:: VenvSite : <euddraft 번들 파이썬용 lupa 를 푼 폴더>
+
+:: 2. STRCtrig 어셈블러 (eudplib 0.81 사본). Path = STRCtrigAssembler.exe 가 만든 TRIGP*.chk 가 든 폴더(Ctemp)
+[<eudext 저장소>\hybrid\plugins\STRCtrig_v55_eud081.py]
+Path : <Ctemp 폴더>\
+
+:: 3. 원래 맵 eds 에 있던 플러그인을 원래 순서대로. 0.81 사본이 있는 것은 사본을 쓴다 (STRCtrig 보다 아래)
+:: [<eudext 저장소>\hybrid\plugins\NSQC_eud081.py]
+:: [unlimiter.py]
+:: [<eudext 저장소>\hybrid\plugins\CPLP_eud081.py]
+
+:: 4. eudext 로 짠 새 코드
+[<새 코드>.eps]
+
+:: 5. freeze - 0.11 은 이 섹션이 없으면 freeze 를 켠다. 키가 있으면 값과 상관없이 끈다.
+::    확인된 하이브리드 빌드는 모두 끈 판이다.
+[freeze]
+freeze : 0

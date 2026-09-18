@@ -1,0 +1,222 @@
+// auto_all phase 2 `pool` (1~60 판정, 끝까지 조용히 돎) — examples/pool_ingame.eps 에서 옮김 (C11-1~7)
+// 바뀐 점: 요약 줄은 60 프레임에 한 번만 띄운다(원래 맵은 12 프레임부터 2초마다 — chat 단계를 흔들지 않게).
+//          판정 값은 60 프레임에 dbg.mark/check, 18 단계(final)에서 C11-1 을 다시 본다.
+// step(f): f = 게임 프레임(1부터). 진행기가 매 프레임 부른다(사슬 되쓰기를 끝까지 유지 — C11-1 "여러 프레임 동안").
+import eudext.pool as pool;
+import eudext.dbg as dbg;
+
+const chain = pool.Pool("Chain", "a b! c d", capacity=5);
+const ch = chain.cur;
+const over = pool.Pool("Over", "u", capacity=36);
+const mix = pool.Pool("Mix", "id", capacity=6);
+const mx = mix.cur;
+const slow = pool.Pool("Slow", "v w", capacity=3);
+const sl = slow.cur;
+const perf = pool.Pool("Perf", "a b c d e f g h", capacity=128);
+const pf = perf.cur;
+const sgn = pool.Pool("Sgn", list(pool.Field("dir", signed=true), "w"), capacity=2);
+const sg = sgn.cur;
+const kinds = pool.Pool("Kind", "kind", capacity=2);
+const expect3 = EUDArray(list(1234, 1234, 1345, 345));
+
+var frame, disp, t1ok, t2ok, t3ok, t4ok, t5ok, t6ok, t7ok;
+var visits1, bad1, overDropped, overCount, code3, last3, h1, t3bad;
+var g1, g0, al1, al2, ix4, sum4, perfCount, visits6, t6bad, visits7;
+
+function t1() {
+    if (frame == 1) {
+        for (var i = 0 ; i < 5 ; i++) {
+            chain.alloc(a=i * 1000 + 7, b=0x80000000 + i, c=0xFFFFFFF0 + i, d=i);
+        }
+    }
+    foreach (_ : chain.each()) {
+        visits1 += 1;
+        if (ch.b != 0x80000000 + ch.d) { bad1 += 1; }
+        if (ch.c != 0xFFFFFFF0 + ch.d) { bad1 += 1; }
+        if (ch.a != ch.d * 1000 + 6 + frame) { bad1 += 1; }
+        ch.a += 1;
+        if (disp == 1) {
+            printAll("\x07[T1] #{} a={} ({}) b={} ({}) c={} ({})", ch.d, ch.a, ch.d * 1000 + 7 + frame,
+                ch.b, 0x80000000 + ch.d, ch.c, 0xFFFFFFF0 + ch.d);
+        }
+    }
+    if (visits1 == frame * 5 && bad1 == 0) { t1ok = 1; } else { t1ok = 0; }
+    if (disp == 1) {
+        printAll("\x07[T1] 사슬 적재: 방문 {} ({}) 불일치 {} (0) 판정 {} (1)", visits1, frame * 5, bad1, t1ok);
+    }
+}
+
+function t2() {
+    if (frame == 2) {
+        for (var i = 0 ; i < 37 ; i++) {
+            over.alloc(u=i);
+        }
+        overDropped = over.dropped;
+        overCount = over.count;
+        if (overCount == 36 && overDropped == 1) { t2ok = 1; }
+    }
+    if (disp == 1) {
+        printAll("\x07[T2] 넘침: count={} (36) dropped={} (1) 판정 {} (1) — 2프레임에 ERROR 1줄·경고음 3번",
+            overCount, overDropped, t2ok);
+    }
+}
+
+function t3() {
+    if (frame == 3) {
+        h1 = mix.alloc(id=1);
+        mix.alloc(id=2);
+        mix.alloc(id=3);
+        mix.alloc(id=4);
+    }
+    if (frame >= 3 && frame <= 6) {
+        code3 = 0;
+        foreach (_ : mix.each()) {
+            code3 = code3 * 10 + mx.id;
+            if (frame == 4 && mx.id == 2) {
+                mix.free_current();
+                mix.alloc(id=5);
+            }
+            if (frame == 5 && mx.id == 3) {
+                mix.free(h1);
+            }
+        }
+        if (code3 != expect3[frame - 3]) { t3bad += 1; }
+        last3 = code3;
+        printAll("\x07[T3] 프레임 {}: 방문 순서 {} ({})", frame, code3, expect3[frame - 3]);
+        if (frame == 3) { dbg.mark("pool.C11-3.F3", code3, suite="pool"); }
+        if (frame == 4) { dbg.mark("pool.C11-3.F4", code3, suite="pool"); }
+        if (frame == 5) { dbg.mark("pool.C11-3.F5", code3, suite="pool"); }
+        if (frame == 6) { dbg.mark("pool.C11-3.F6", code3, suite="pool"); }
+        if (frame == 6 && t3bad == 0) { t3ok = 1; }
+    }
+    if (disp == 1) {
+        printAll("\x07[T3] 루프 중 반납·할당: 불일치 {} (0) 마지막 순서 {} (345) 판정 {} (1)", t3bad, last3, t3ok);
+    }
+}
+
+function t4() {
+    if (frame == 7) {
+        const hs0 = slow.alloc(v=11, w=22);
+        const hs1 = slow.alloc(v=33, w=44);
+        slow.set(hs1, "w", 99);
+        g1 = slow.get(hs1, "w");
+        g0 = slow.get(hs0, "v");
+        if (slow.is_alive(hs0)) { al1 = 1; }
+        slow.free(hs0);
+        if (slow.is_alive(hs0)) { al2 = 1; }
+        ix4 = slow.index_of(hs1);
+    }
+    if (frame == 8) {
+        foreach (_ : slow.each()) {
+            sum4 += sl.v + sl.w;
+        }
+        if (g1 == 99 && g0 == 11 && al1 == 1 && al2 == 0 && ix4 == 1 && sum4 == 132) { t4ok = 1; }
+    }
+    if (disp == 1) {
+        printAll("\x07[T4] 느린 경로: get {} (99) {} (11) is_alive {} (1) → {} (0) index_of {} (1) 합 {} (132) 판정 {} (1)",
+            g1, g0, al1, al2, ix4, sum4, t4ok);
+    }
+}
+
+function t5() {
+    if (frame == 8) {
+        for (var i = 0 ; i < 10 ; i++) {
+            perf.alloc(a=i);
+        }
+    }
+    foreach (_ : perf.each()) {
+        pf.a += 1;
+        pf.b = pf.a;
+    }
+    perfCount = perf.count;
+    if (perfCount == 10) { t5ok = 1; }
+    if (disp == 1) {
+        printAll("\x07[T5] 128칸 풀 + 10개 방문 중: count {} (10) 판정 {} (1) — 끊김이 원본 맵보다 심한지 봐 주세요",
+            perfCount, t5ok);
+    }
+}
+
+function t6() {
+    if (frame == 9) {
+        sgn.alloc(dir=-5, w=3);
+    }
+    foreach (_ : sgn.each()) {
+        visits6 += 1;
+        sgn.SetLine(1, Subtract, 5);
+        if (sg.w != 0) { t6bad += 1; }
+        if (!(sg.dir >= -10)) { t6bad += 1; }
+        if (sg.dir <= -6) { t6bad += 1; }
+        if (!sgn.Line(0, AtMost, -1)) { t6bad += 1; }
+    }
+    if (visits6 >= 1 && t6bad == 0) { t6ok = 1; } else { t6ok = 0; }
+    if (disp == 1) {
+        printAll("\x07[T6] 부호 필드·Subtract 포화: 방문 {} 불일치 {} (0) 판정 {} (1)", visits6, t6bad, t6ok);
+    }
+}
+
+function t7() {
+    if (frame == 10) {
+        kinds.alloc(kind=999);
+    }
+    foreach (_ : kinds.each()) {
+        visits7 += 1;
+        kinds.dispatch("kind");
+    }
+    if (frame >= 11 && visits7 == 1 && kinds.count == 0) { t7ok = 1; }
+    if (disp == 1) {
+        printAll("\x07[T7] 미등록 유형: 방문 {} (1) count {} (0) 판정 {} (1) — 10프레임에 ERROR 1줄·경고음 2번",
+            visits7, kinds.count, t7ok);
+    }
+}
+
+function report() {                             // 60 프레임: 판정 값 남기기 (C11-1~7)
+    dbg.check("pool.C11-1.ok", t1ok, suite="pool");
+    dbg.mark("pool.C11-1.visits", visits1, suite="pool");
+    dbg.mark("pool.C11-1.frame", frame, suite="pool");
+    dbg.mark("pool.C11-1.bad", bad1, suite="pool");
+    dbg.check("pool.C11-2.ok", t2ok, suite="pool");
+    dbg.mark("pool.C11-2.count", overCount, suite="pool");
+    dbg.mark("pool.C11-2.dropped", overDropped, suite="pool");
+    dbg.check("pool.C11-3.ok", t3ok, suite="pool");
+    dbg.mark("pool.C11-3.bad", t3bad, suite="pool");
+    dbg.check("pool.C11-4.ok", t4ok, suite="pool");
+    dbg.mark("pool.C11-4.g1", g1, suite="pool");
+    dbg.mark("pool.C11-4.g0", g0, suite="pool");
+    dbg.mark("pool.C11-4.al1", al1, suite="pool");
+    dbg.mark("pool.C11-4.al2", al2, suite="pool");
+    dbg.mark("pool.C11-4.ix", ix4, suite="pool");
+    dbg.mark("pool.C11-4.sum", sum4, suite="pool");
+    dbg.check("pool.C11-5.ok", t5ok, suite="pool");
+    dbg.mark("pool.C11-5.count", perfCount, suite="pool");
+    dbg.check("pool.C11-6.ok", t6ok, suite="pool");
+    dbg.mark("pool.C11-6.visits", visits6, suite="pool");
+    dbg.mark("pool.C11-6.bad", t6bad, suite="pool");
+    dbg.check("pool.C11-7.ok", t7ok, suite="pool");
+    dbg.mark("pool.C11-7.visits", visits7, suite="pool");
+    dbg.mark("pool.C11-7.count", kinds.count, suite="pool");
+}
+
+function final_report() {                       // phase 18: 사슬 되쓰기가 끝까지 맞았는가 (C11-1 "여러 프레임 동안")
+    dbg.check("final.C11-1.ok", t1ok, suite="final");
+    dbg.mark("final.C11-1.visits", visits1, suite="final");
+    dbg.mark("final.C11-1.frame", frame, suite="final");
+    dbg.mark("final.C11-1.bad", bad1, suite="final");
+    printAll("\x07[C11-1] 끝까지 사슬 되쓰기: 방문 {} ({}) 불일치 {} (0) 판정 {} (1)", visits1, frame * 5, bad1, t1ok);
+}
+
+function step(f) {
+    frame = f;
+    disp = 0;
+    if (f == 60) {
+        disp = 1;
+        printAll("\x07[pool] eudext.pool 인게임 확인 — 프레임 {} (괄호 = 기대값)", f);
+    }
+    t1();
+    t2();
+    t3();
+    t4();
+    t5();
+    t6();
+    t7();
+    if (f == 60) { report(); }
+}

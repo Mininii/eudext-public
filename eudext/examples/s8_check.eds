@@ -1,0 +1,26 @@
+:: 01 S8_SubtractTest 계측판 빌드 설정 — eudext 부트 + 디버그 브리지 (A-1·B15-5 자동 판정)
+:: 원래 빌드(docs/spec/S8_ingame/build.bat, CBTest.scx, euddraft 0.9.2.0 도 됨)는 그대로 둔다.
+:: 이 eds 는 입력 맵을 testing/base.scx 로 바꾸고 dbg_setup 플러그인으로 브리지를 켠다(s8_ingame.py 의 dbg_report).
+:: 빌드: python eudext/tools/ingame_maps.py --out <폴더> S8   (또는 tools/build.py euddraft <이 파일> --work <폴더>)
+
+[main]
+input : ../testing/base.scx
+output : 01_S8_SubtractTest.scx
+
+[../boot.py]
+EudextRoot : ../..
+Preload : dbg
+
+[dbg_setup.py]
+WatchSlots : 64
+Probes : 128
+
+[../docs/spec/S8_ingame/s8_ingame.py]
+
+:: [eudTurbo] = euddraft 0.11 번들 플러그인 (afterTriggerExec 에서 0x6509A0 = 0) — 트리거를 매 프레임 돌게 한다.
+:: 인게임 G-1(2026-09-18): 터보가 없으면 한 사이클이 약 28~30프레임(1.2초)이라 화면 줄이 30배 늦게 돈다.
+
+[eudTurbo]
+
+[freeze]
+freeze : 0

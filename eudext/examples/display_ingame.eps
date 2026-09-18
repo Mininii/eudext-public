@@ -1,0 +1,137 @@
+// eudext.display 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 E6-* 항목 (WP6b ingame.md)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/display_ingame.eds --work <작업 폴더>
+// 입력 맵은 testing/base_multi.scx (P1~P4 사람 칸). 혼자(P1) 열면 E6-1 을 뺀 모든 항목을 본다.
+// E6-1(관전자)은 PC 두 대: 한 명은 P1, 한 명은 관전자 칸으로 들어가 관전자 화면에 [E6-1] 줄이 뜨는지 본다.
+//
+// 첫 사이클에 버퍼 7개를 기대 바이트와 비교한다(자체 점검 — 에뮬레이터 7 / 7). 약 6초(72 사이클)마다 한 쪽씩 9쪽을 돈다:
+//   0 [E6-1] 관전자·LOCAL   1 [E6-3] 13번째 줄     2 [E6-4] TBL(마린 이름, NUL)   3 [E6-4b] TBL(NUL·U+2009 없음)
+//   4 [E6-5] 이름 두 주소    5 [E6-7] 0x0D 고정 폭   6 [E6-9] 긴 줄             7 [E6-10] every          8 [E6-6] 임무 목표
+// 쪽마다 [E6-8] 자체 점검 줄과 [E6-2] 고정 줄 두 개(매 프레임 같은 줄)가 함께 보인다.
+// 기대값은 tests/t_display.py 가 에뮬레이터로 확인했다. 이 파일을 고치면 시험의 INGAME_TOTAL 도 고친다.
+import eudext.display as dp;
+import eudext.numfmt as nf;
+import eudext.players as pl;
+import eudext.dbg as dbg;
+
+var frame, okCount, total, lastBad;
+var page, obsShown, isObs, localId, headBefore, headAfter, tblp;
+var v42 = 42;
+var vneg = 0xFFFFFFF6;        // −10
+var big = 12345678;
+const tmpl = dp.Template("\x07[E6-6] \x04임무 목표 카운터 \x1F", frame);
+const tchk = dp.Template("T:", vneg, "|", nf.Dec(v42, width=4, fill="0"));
+const tblBuf = Db(72);        // TBL 주소는 4의 배수가 아닐 수 있다 → 정렬된 버퍼로 옮겨 스냅숏
+const tblBuf2 = Db(72);
+
+// 2026-09-18 인게임(통합 맵): 13번째 줄·TBL 쓰기에서 EUD ERROR(0xFF9BE98B) 로 멈췄다 → E6-3·4·4b 는 이 맵에서만 돈다.
+// 어디까지 갔는지 남기려고 쪽마다 m25.stage(시작)·m25.stage_ok(끝)를 적는다. 멈추면 `RUN.bat --once` 로 읽는다.
+dbg.snapshot_text("m25.E6-3.line13", 0x641598, 56, every=0);
+dbg.snapshot_text("m25.E6-4.tbl", tblBuf, 16, every=0);
+dbg.snapshot_text("m25.E6-4b.tbl", tblBuf2, 16, every=0);
+
+function chk(ptr, exp) {
+    total += 1;
+    if (strcmp(ptr, exp) == 0) { okCount += 1; } else { lastBad = total; }
+}
+
+function self_check() {
+    dbg.mark("m25.stage", 100);                  // 100 = 자체 점검 시작 (13번째 줄·TBL 을 쓴다)
+    tchk.update();
+    chk(tchk.addr, Db("T:\r\r\r\r\r\r\r\r\r\r\r-10|\r\r\r0042\r\r\r\r\r\r\r\r"));
+    dp.show_line13(P1, "[E6-3] 13번째 줄 ", v42);
+    chk(0x641598, Db("[E6-3] 13번째 줄 \r\r\r\r\r\r\r\r\r\r42"));
+    dp.set_tbl(1, "[E6-4] 마린 ", v42);
+    chk(GetTBLAddr(1), Db("[E6-4] 마린 42\u2009"));
+    const s1 = dp.show(dp.LOCAL, "S:", nf.Man(big), dp.Byte(0x41), "|", nf.dp.dec16(vneg));
+    chk(s1.addr, Db("S:\r\r\r\r\r1234\r만\r5678\r\r\r\rA|\r\r\r\r\r\r\r-\r\r\r\r\r\r\r\r10"));
+    const s2 = dp.show(dp.LOCAL, dp.Pick(page, list("zero", "one"), missing="?"), "!");
+    chk(s2.addr, Db("zero!"));
+    const s3 = dp.show(dp.LOCAL, dp.Bytes(v42, 0x43));
+    chk(s3.addr, Db("*C\r\r"));
+    const s4 = dp.show(dp.LOCAL, nf.Per(big));
+    chk(s4.addr, Db("\r\r\r12345.678"));
+    dbg.mark("m25.stage_ok", 100);
+    dbg.result("m25.E6-8.all", okCount, total);
+    dbg.mark("m25.E6-8.lastbad", lastBad);
+}
+
+function page_lines() {
+    if (page == 0) {
+        localId = getuserplayerid();
+        if (localId >= 128) { isObs = 1; }
+        dp.show(pl.Everyone, "\x07[E6-1] \x04모두(사람 + 관전자)에게 보내는 줄 — 관전자 PC 에서도 보여야 합니다");
+        const obs0 = dwread(0x640B58);
+        const n0 = dwread(0x640B58);
+        dp.show(pl.Observers, "\x07[E6-1] \x1F관전자에게만 보내는 줄 — 관전자 PC 에서만 보여야 합니다");
+        const obs1 = dwread(0x640B58);
+        if (obs1 != obs0) { obsShown = 1; }
+        dbg.mark("m25.E6-1.obs", obsShown);
+        dbg.mark("m25.E6-1.local", localId);
+        dbg.check("m25.E6-1.shown", obsShown == isObs ? 1 : 0);   // 관전자 PC 에만 떠야 한다
+        dp.show(dp.LOCAL, "\x07[E6-1] \x04LOCAL: 이 PC 번호 = \x1F", getuserplayerid(), "\x04 (P1 = 0, 관전자 = 128~131)");
+    } else if (page == 1) {
+        dp.show(dp.LOCAL, "\x07[E6-3] \x04화면 아래 13번째 줄(오류 줄)에 '[E6-3] 13번째 줄 …' 이 약 6초 동안 두 번 뜹니다");
+        headBefore = dwread(0x628438);
+        dp.show_line13(P1, "\x08[E6-3] \x0413번째 줄 \x1F", frame, "\x04 — 오류 소리 없이 이 글이 보여야 합니다");
+        headAfter = dwread(0x628438);
+        dbg.capture("m25.E6-3.line13");
+        dbg.mark("m25.E6-3.head_before", headBefore);
+        dbg.mark("m25.E6-3.head_after", headAfter);
+        dbg.check("m25.E6-3.head", headBefore == headAfter);
+    } else if (page == 2) {
+        dp.show(dp.LOCAL, "\x07[E6-4] \x04마린을 선택하세요. 이름 칸이 '[E6-4] 마린 숫자' 이고 뒤에 옛 글자가 없어야 합니다 (NUL)");
+        dp.set_tbl(1, "\x04[E6-4] 마린 ", frame);
+        tblp = GetTBLAddr(1);
+        memcpy(tblBuf, tblp, 64);
+        dbg.capture("m25.E6-4.tbl");
+        dbg.mark("m25.E6-4.frame", frame);
+    } else if (page == 3) {
+        dp.show(dp.LOCAL, "\x07[E6-4b] \x04이번엔 NUL·U+2009 없이 짧게 씁니다(원본 방식) — 이름 칸에 앞 쪽 글자가 남아 보이는지 알려 주세요");
+        dp.set_tbl(1, "[E6-4b]", eos=false, tail=false);
+        tblp = GetTBLAddr(1);
+        memcpy(tblBuf2, tblp, 64);
+        dbg.capture("m25.E6-4b.tbl");
+    } else if (page == 4) {
+        dp.show(dp.LOCAL, "\x07[E6-5] \x04이름 네 개가 같아야: ", dp.PName(0), "\x04 / ", nf.dp.name20(0), "\x04 / ",
+                dp.PName(0, cache=true), "\x04 / ", dp.LocalName());
+        dp.show(dp.LOCAL, "\x07[E6-5] \x04(0x57EEEB 실시간 / 0x6D0FDC DPL 표 / 시작 때 담은 것 / 이 PC 이름) 클랜 태그·한글 이름이면 더 좋습니다");
+    } else if (page == 5) {
+        dp.show(dp.LOCAL, "\x07[E6-7] \x04|", nf.dp.dec16(vneg), "\x04|", nf.dp.man18(big, color=true), "\x04|",
+                nf.dp.per8(12500), "\x04|", nf.dp.dig2(v42), "\x04|", v42, "\x04|");
+        dp.show(dp.LOCAL, "\x07[E6-7] \x04기대: |-10|1234만5678(색)|12.5|42|42| — 0x0D 채움이 옛 맵처럼 폭을 차지하지 않아야");
+    } else if (page == 6) {
+        dp.show(dp.LOCAL, "\x07[E6-9] \x04긴 줄 ", v42, v42, v42, v42, v42, v42, v42, v42, v42, v42, v42, v42, v42, v42,
+                v42, v42, "\x1F 끝(이 글자가 보이는지)");
+    } else if (page == 7) {
+        dp.show(dp.LOCAL, "\x07[E6-10] \x04every=24: 이 줄은 매 프레임 다시 띄우고 숫자는 약 2초마다 바뀝니다");
+    } else {
+        dp.show(dp.LOCAL, "\x07[E6-6] \x04임무 목표 창을 연 채로 카운터가 바뀌는지 보세요 (창을 다시 열 때만 바뀌는지)");
+    }
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        self_check();
+        DoActions(CreateUnit(1, "Terran Marine", "Anywhere", P1), SetMissionObjectives(tmpl.string));
+    }
+    page = frame / 72 % 9;
+    tmpl.update();
+    dp.begin_pinned();
+    dp.show(dp.LOCAL, "\x07[E6-2] \x04고정 줄 1 — 프레임 \x1F", frame);
+    dp.show(dp.LOCAL, "\x07[E6-2] \x04고정 줄 2 — 쪽 \x1F", page, "\x04 / 8 (채팅을 쳐도 두 줄이 제자리)");
+    dp.end_pinned();
+    if (page == 7) {
+        // E6-10: every=24 + pin 은 **매 프레임** 불러야 효과(같은 줄 유지 + 24프레임마다 숫자)가 보인다
+        dp.show(dp.LOCAL, "\x07[E6-10] \x04every=24 + pin → \x1F", frame,
+                every=24, pin=true);
+    }
+    if (frame % 72 == 1) {
+        dbg.mark("m25.stage", page);
+        page_lines();
+        dbg.mark("m25.stage_ok", page);
+        dp.show(dp.LOCAL, "\x07[E6-8] \x04자체 점검 \x1F", okCount, " / ", total, "\x04 (틀린 번호 ", lastBad, ")");
+    }
+    // 위험한 쪽(1~3 = 13번째 줄·TBL)을 다 지난 뒤에 완료 표식을 남긴다 — 멈추면 m25.stage 로 어디서 멈췄는지 안다
+    if (frame == 4 * 72) { dbg.mark("done"); }
+}

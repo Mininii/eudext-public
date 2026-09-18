@@ -1,0 +1,26 @@
+:: eudext.display 인게임 확인 맵 (docs/INGAME_CHECKLIST.md 의 D6-*)
+:: 빌드: python eudext/tools/build.py euddraft eudext/examples/display_ingame.eds --work <작업 폴더>
+:: 나온 display_ingame_out.scx 를 StarCraft: Remastered 에서 연다 (혼자 P1, D6-1 은 관전자 PC 하나 더).
+
+[main]
+input : ../testing/base_multi.scx
+output : display_ingame_out.scx
+
+[../boot.py]
+EudextRoot : ../..
+Preload : dbg, i64, numfmt, display
+
+[dbg_setup.py]
+WatchSlots : 128
+Probes : 256
+
+[display_ingame.eps]
+
+:: [eudTurbo] = euddraft 0.11 번들 플러그인 (afterTriggerExec 에서 0x6509A0 = 0) — 트리거를 매 프레임 돌게 한다.
+:: 인게임 G-1(2026-09-18): 터보가 없으면 한 사이클이 약 28~30프레임(1.2초)이라 맵의 프레임 수가 30배 늦게 간다.
+:: eudext 모듈·확인 맵은 모두 "한 사이클 = 한 프레임"(사용자 맵의 CtrigAsm EUDTurbo 와 같은 상태)을 전제한다.
+
+[eudTurbo]
+
+[freeze]
+freeze : 0

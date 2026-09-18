@@ -1,0 +1,263 @@
+// auto_all phase 1 `units` (프레임 1~55) — examples/units_ingame.eps 에서 옮김 (B10-1(a)~8·10, B15-3)
+// 바뀐 점: t9(유닛 한도 채우기, 한 프레임 약 5만 트리거)는 뺐다 → 27_X_limit 맵(xlimit_ingame.eps).
+//          화면 줄은 원래 맵과 같다. 판정 값은 dbg.mark/check 로 남긴다(이름 앞머리 "units.").
+//          미리 놓인 P1 파이어뱃(기준 맵 testing/auto_all_base.scx)의 체력을 1·30 프레임에 적는다(B15-3).
+// step(f): f = 게임 프레임(1부터). 진행기가 1~55 에만 부른다. 이 창에서는 다른 단계가 유닛을 만들지 않는다.
+import eudext.units as units;
+import eudext.dbg as dbg;
+
+const data = units.UnitData(alive="byte", mark="dword");
+const data2 = units.UnitData(tag="dword");
+const u = units.Capture();
+var okv, killSlot, ccSlot, ccDeaths, deadSeen, deadF8, newCount, t8Slot, fbEpd;
+var ord0, spr0, hp0;
+
+function head() {
+    return units.index(dwread(0x628438));
+}
+
+// 2026-09-18 인게임: 빈 칸 목록은 번호가 **줄어드는** 쪽으로 간다(머리 1635 → 1634 — 미리 놓인 65기가 1699부터 내려가며
+// 차지한다). 에뮬레이터 모델은 늘어나는 쪽이라 칸 걸음은 **절대값**으로 적는다 — 두 곳에서 같은 기대값(2·3)이 나온다.
+function stepAbs(a, b) {
+    if (a >= b) { return a - b; }
+    return b - a;
+}
+
+function okValue() {
+    if (u.ok) { return 1; }
+    return 0;
+}
+
+function findUnit(kind, owner) {                // 활성 목록(0x628430)을 따라가며 (종류, 주인) 첫 유닛의 EPD (없으면 0)
+    var p = dwread(0x628430);
+    var guard = 0;
+    while (p != 0 && guard < 1700) {
+        const e = EPD(p);
+        if (wread_epd(e + 25, 0) == kind && bread_epd(e + 19, 0) == owner) { return e; }
+        p = dwread_epd(e + 1);
+        guard += 1;
+    }
+    return 0;
+}
+
+function t1() {                                 // B10-2
+    const h0 = head();
+    u.begin();
+    CreateUnit(1, "Terran Marine", "Anywhere", P1);
+    u.end();
+    okv = okValue();
+    killSlot = u.index;
+    const h1 = head();
+    const ty = wread_epd(u.epd + 25, 0);
+    const ow = bread_epd(u.epd + 19, 0);
+    const od = bread_epd(u.epd + 19, 1);
+    const uq = bread_epd(u.epd + 41, 1);
+    printAll("\x07[T1] ok={}(1) idx={} 머리 전={} 후={} 종류={}(0) 주인={}(0) 주문={}(0 아님) 고유={}",
+        okv, u.index, h0, h1, ty, ow, od, uq);
+    dbg.mark("units.T1.ok", okv, suite="units");
+    dbg.mark("units.T1.idx", u.index, suite="units");
+    dbg.mark("units.T1.head0", h0, suite="units");
+    dbg.mark("units.T1.head1", h1, suite="units");
+    dbg.mark("units.T1.type", ty, suite="units");
+    dbg.mark("units.T1.owner", ow, suite="units");
+    dbg.mark("units.T1.order", od, suite="units");
+    dbg.mark("units.T1.uniq", uq, suite="units");
+    dbg.mark("units.T1.headdown", h0 > h1 ? 1 : 0, suite="units");   // 1 = 빈 칸 목록이 줄어드는 쪽 (인게임)
+    dbg.check("units.B10-2.idx", u.index == h0, suite="units");
+}
+
+function t2() {                                 // B10-3
+    u.begin();
+    CreateUnit(1, "Terran Goliath", "Anywhere", P1);
+    u.end();
+    okv = okValue();
+    const idx = u.index;
+    const subIdx = units.index(dwread_epd(u.epd + 28));
+    const se = units.slot(subIdx);
+    const ty = wread_epd(u.epd + 25, 0);
+    const sty = wread_epd(se[1] + 25, 0);
+    const h = head();
+    printAll("\x07[T2] ok={} idx={} 종류={}(3) 서브유닛 칸={} 서브 종류={}(4) 머리={}", okv, idx, ty, subIdx, sty, h);
+    dbg.mark("units.T2.ok", okv, suite="units");
+    dbg.mark("units.T2.type", ty, suite="units");
+    dbg.mark("units.T2.subtype", sty, suite="units");
+    dbg.mark("units.T2.subidx", subIdx, suite="units");
+    dbg.mark("units.T2.subnext", stepAbs(subIdx, idx) == 1 ? 1 : 0, suite="units");
+    dbg.mark("units.T2.headstep", stepAbs(h, idx), suite="units");
+}
+
+function t3() {                                 // B10-4
+    u.begin();
+    CreateUnit(3, "Terran Marine", "Anywhere", P1);
+    u.end();
+    okv = okValue();
+    const first = u.index;
+    const h = head();
+    printAll("\x07[T3] 3마리 ok={} 첫 칸={} 머리={}(첫 칸+3 이면 연속)", okv, first, h);
+    dbg.mark("units.T3.ok", okv, suite="units");
+    dbg.mark("units.T3.headstep", stepAbs(h, first), suite="units");
+}
+
+function t4() {                                 // B10-1 (a)
+    u.begin();
+    CreateUnit(1, "Terran Command Center", 3, P1);
+    u.end();
+    okv = okValue();
+    ccSlot = u.index;
+    const h0 = head();
+    u.begin();
+    CreateUnit(1, "Terran Command Center", 3, P1);
+    u.end();
+    const ok2 = okValue();
+    const h1 = head();
+    printAll("\x07[T4] 첫 CC ok={}(1) 칸={}, 겹친 CC ok={}(0) 머리 전={} 후={}(같아야 함)", okv, ccSlot, ok2, h0, h1);
+    dbg.mark("units.T4.ok1", okv, suite="units");
+    dbg.mark("units.T4.ok2", ok2, suite="units");
+    dbg.check("units.B10-1.head", h0 == h1, suite="units");
+}
+
+function t6(f) {                                // B10-6: 죽은 칸의 주문·HP·스프라이트가 0 이 되는 프레임
+    const e = units.slot(killSlot);
+    const od = bread_epd(e[1] + 19, 1);
+    const hp = dwread_epd(e[1] + 2);
+    const sp = dwread_epd(e[1] + 3);
+    printAll("\x07[T6] F{} 칸{} 주문={} HP={} 스프라이트={} 머리={}", f, killSlot, od, hp, sp, head());
+    if (od == 0 && ord0 == 0) { ord0 = f; }
+    if (hp == 0 && hp0 == 0) { hp0 = f; }
+    if (sp == 0 && spr0 == 0) { spr0 = f; }
+}
+
+function t8() {                                 // B10-6/7
+    const e = units.slot(killSlot);
+    const before = bread_epd(e[1] + 41, 1);
+    u.begin();
+    CreateUnit(1, "Terran Marine", "Anywhere", P1);
+    u.end();
+    okv = okValue();
+    t8Slot = u.index;
+    const now = bread_epd(e[1] + 41, 1);
+    printAll("\x07[T8] ok={} 새 칸={} (죽은 칸 {} 이면 앞으로 돌려줌) 죽은 칸 고유 전={} 지금={} 머리={}",
+        okv, t8Slot, killSlot, before, now, head());
+    dbg.mark("units.T8.ok", okv, suite="units");
+    dbg.mark("units.T8.slot", t8Slot, suite="units");
+    dbg.mark("units.T8.killslot", killSlot, suite="units");
+    dbg.mark("units.T8.front", t8Slot == killSlot ? 1 : 0, suite="units");
+    dbg.mark("units.T8.uniq0", before, suite="units");
+    dbg.mark("units.T8.uniq1", now, suite="units");
+}
+
+function fb(f) {                                // B15-3: 미리 놓인 파이어뱃의 현재 HP·units.dat 최대 HP (1/256 단위)
+    if (fbEpd == 0) { fbEpd = findUnit(32, 0); }
+    if (fbEpd != 0) {
+        const hp = dwread_epd(fbEpd + 2);
+        const mx = dwread(0x662350 + 4 * 32);
+        if (f == 1) {
+            dbg.mark("units.B15-3.hp1", hp, suite="units");
+            dbg.mark("units.B15-3.max1", mx, suite="units");
+        } else {
+            dbg.mark("units.B15-3.hp30", hp, suite="units");
+            dbg.mark("units.B15-3.max30", mx, suite="units");
+            printAll("\x07[B15-3] 미리 놓인 파이어뱃 HP {} / 최대 {} (1/256 단위 — 50·100 이면 그대로, 100·100 이면 채움)",
+                hp / 256, mx / 256);
+        }
+    }
+    dbg.mark("units.B15-3.found", fbEpd != 0 ? 1 : 0, suite="units");
+}
+
+function nuMark(f) {                           // B10-5: 프레임별 새 유닛 수
+    if (f == 1) { dbg.mark("units.B10-5.F1", newCount, suite="units"); }
+    if (f == 2) { dbg.mark("units.B10-5.F2", newCount, suite="units"); }
+    if (f == 3) { dbg.mark("units.B10-5.F3", newCount, suite="units"); }
+    if (f == 4) { dbg.mark("units.B10-5.F4", newCount, suite="units"); }
+    if (f == 5) { dbg.mark("units.B10-5.F5", newCount, suite="units"); }
+    if (f == 6) { dbg.mark("units.B10-5.F6", newCount, suite="units"); }
+    if (f == 7) { dbg.mark("units.B10-5.F7", newCount, suite="units"); }
+    if (f == 8) { dbg.mark("units.B10-5.F8", newCount, suite="units"); }
+    if (f == 9) { dbg.mark("units.B10-5.F9", newCount, suite="units"); }
+    if (f == 10) { dbg.mark("units.B10-5.F10", newCount, suite="units"); }
+    if (f == 11) { dbg.mark("units.B10-5.F11", newCount, suite="units"); }
+    if (f == 12) { dbg.mark("units.B10-5.F12", newCount, suite="units"); }
+}
+
+function step(f) {
+    if (f == 1) { t1(); fb(1); }
+    if (f == 2) { t2(); }
+    if (f == 3) { t3(); }
+    if (f == 4) { t4(); }
+    if (f == 5) { data.mark[ccSlot] = 7; data2.tag[ccSlot] = 9; }
+    if (f == 6) { CreateUnit(1, "Terran Marine", 1, P1); }
+    if (f == 8) { KillUnit("Terran Marine", P1); }
+    if (f >= 8 && f <= 20) { t6(f); }
+    if (f == 24) { t8(); }
+    // 2026-09-18: 맵 전체 충돌 상자를 1,1,1,1 로 만든 뒤로 로케이션 3(점 로케이션)이 CC 를 더는 "잡지" 못한다
+    // — 로케이션 판정은 유닛의 충돌 상자로 한다. 이 시험이 보는 것은 죽음 알림(units.dying)이지 로케이션이 아니므로
+    // 로케이션 없이 지운다. (사용자 맵에 1,1,1,1 을 걸 때 조심할 자리 — datpatch.all_unit_size 주의 참고)
+    if (f == 26) { RemoveUnit("Terran Command Center", P1); }
+    if (f == 30) { fb(30); }
+    if (f == 32) { KillUnit("Terran Marine", P1); }
+
+    newCount = 0;
+    foreach (nu : units.new_units(clear=data)) {
+        data.alive[nu.index] = 1;
+        newCount += 1;
+        if (newCount <= 3 && f <= 12) {
+            printAll("[T5] F{} 새 유닛 칸={} 종류={}", f, nu.index, wread_epd(nu.epd + 25, 0));
+        }
+    }
+    if (f <= 12) {
+        printAll("\x07[T5] F{} 새 유닛 {}마리", f, newCount);
+        nuMark(f);
+    }
+    if (f == 6) { CreateUnit(1, "Terran Marine", 1, P1); }
+
+    var dead0 = deadSeen;                       // const 는 같은 변수를 가리킨다 — 사본이 필요하다
+    foreach (d : units.dying(data, key="alive", limit=40)) {
+        deadSeen += 1;
+        if (d.index == ccSlot) {
+            ccDeaths += 1;
+            printAll("\x07[T10] F{} CC 칸 {} 죽음 알림 (mark={}(7), 한 번만 나와야 함)", f, d.index, data.mark[d.index]);
+        } else if (f <= 40) {
+            printAll("[T7] F{} 죽음 칸={} 종류={}", f, d.index, wread_epd(d.epd + 25, 0));
+        }
+    }
+    if (f == 8) { deadF8 = deadSeen - dead0; }
+    units.clear_on_death(data2);
+    if (f == 45) {
+        const cm = data.mark[ccSlot];
+        const ct = data2.tag[ccSlot];
+        printAll("\x07[T10] CC 죽음 알림 {}회(1), CC 칸 mark={}(0) tag={}(0), 죽음 알림 합계 {}", ccDeaths, cm, ct, deadSeen);
+        dbg.mark("units.T10.ccdeaths", ccDeaths, suite="units");
+        dbg.mark("units.T10.mark", cm, suite="units");
+        dbg.mark("units.T10.tag", ct, suite="units");
+        dbg.mark("units.T10.dead", deadSeen, suite="units");
+        dbg.mark("units.T7.deadF8", deadF8, suite="units");
+        dbg.mark("units.T6.order0", ord0, suite="units");
+        dbg.mark("units.T6.hp0", hp0, suite="units");
+        dbg.mark("units.T6.sprite0", spr0, suite="units");
+    }
+    if (f == 50) {
+        u.begin();
+        CreateUnit(1, "Terran Marine", "Anywhere", P1);
+        u.end();
+        var rt = 0xFFFF;
+        if (u.ok) {
+            units.CUnit(u.epd).removeTimer = 0;
+            rt = wread_epd(u.epd + 68, 0);
+            printAll("\x07[T11] removeTimer 쓰기 → {}(0), 칸={}, 끝", rt, u.index);
+        }
+        dbg.mark("units.T11.ok", okValue(), suite="units");
+        dbg.mark("units.T11.timer", rt, suite="units");
+    }
+}
+
+function cleanup() {                            // phase 끝: 이 단계가 만든 P1 유닛 정리 (파이어뱃·리빌러는 남김)
+    RemoveUnit("Terran Marine", P1);
+    RemoveUnit("Terran Goliath", P1);
+    RemoveUnit("Terran Command Center", P1);
+    RemoveUnit("Goliath Turret", P1);
+}
+
+function clean_check() {                        // 정리 확인(59): 이 단계가 만든 종류가 남지 않았다
+    dbg.check("aa.clean.units", list(Command(P1, Exactly, 0, "Terran Marine"),
+        Command(P1, Exactly, 0, "Terran Goliath"), Command(P1, Exactly, 0, "Terran Command Center")));
+}

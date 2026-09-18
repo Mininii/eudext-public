@@ -1,0 +1,110 @@
+// eudext.i64 예제 (epScript) — DESIGN 0.3 의 모양 + 시험(tests/t_i64.py)이 부르는 함수들
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/i64_example.eds --work <작업 폴더>
+//
+// 규칙 (DESIGN 3.2·3.11):
+//  - Int64 는 값 타입이다. var 가 아니라 const 로 묶는다(var 에 담으면 32비트 변수가 된다).
+//  - const 객체는 .v 통로로 고친다: x.v = y; x.v += y; x.v -= y; (-= 는 wrap)
+//  - 포화 뺄셈(0 에서 멈춤)은 이름으로만: x.isub_sat(y); i64.sub_sat(a, b); i64.LSub(d, a, b);
+//  - 함수 인자는 (lo, hi) 두 칸으로 받고 i64.wrap(lo, hi) 로 감싼다.
+//  - 인쇄는 x.fmt() 를 넘긴다. `x << 3` 은 쓰지 않는다(Int64 에서 << 는 대입이라 빌드 오류로 막는다).
+import eudext.i64 as i64;
+
+const hp = i64.Int64(0x100000000);            // 초기값만 (트리거 0)
+const gold = i64.Int64Array(8);               // 플레이어별 64비트 값
+const price = i64.Int64("12800000000");       // 10진 문자열 상수
+var mp;
+
+function afterTriggerExec() {
+    hp.v += 5;                                // wrap 덧셈
+    if (hp >= 0x100000005) {
+        printAll("HP {}", hp.fmt());          // 값 타입은 fmt() 로 넘긴다 (3.2-7)
+    }
+}
+
+// ---- 시험용 함수 (반환: lo, hi) ----
+
+function wrap_sub(alo, ahi, blo, bhi) {       // a − b (wrap)
+    const a = i64.wrap(alo, ahi);
+    a.v -= i64.wrap(blo, bhi);
+    return a.lo, a.hi;
+}
+
+function sat_sub(alo, ahi, blo, bhi) {        // max(a − b, 0) (포화, 64비트 전체 기준)
+    const a = i64.wrap(alo, ahi);
+    a.isub_sat(i64.wrap(blo, bhi));
+    return a.lo, a.hi;
+}
+
+function sat_sub_new(alo, ahi, blo, bhi) {    // 새 값으로 받기
+    const r = i64.sub_sat(i64.wrap(alo, ahi), i64.wrap(blo, bhi));
+    return r.lo, r.hi;
+}
+
+function lsub(alo, ahi, blo, bhi) {           // CtrigAsm f_LSub 별칭 (포화)
+    const d = i64.Int64(0);
+    i64.LSub(d, i64.wrap(alo, ahi), i64.wrap(blo, bhi));
+    return d.lo, d.hi;
+}
+
+function add32(alo, ahi, v) {                 // 32비트 값을 더하기 (0 확장)
+    const a = i64.wrap(alo, ahi);
+    a.v += v;
+    return a.lo, a.hi;
+}
+
+function less(alo, ahi, blo, bhi) {           // 부호 없는 비교 (epScript 는 < 를 >= 의 부정으로 번역)
+    return i64.wrap(alo, ahi) < i64.wrap(blo, bhi) ? 1 : 0;
+}
+
+function sless(alo, ahi, blo, bhi) {          // 부호 있는 비교
+    if (i64.slt(i64.wrap(alo, ahi), i64.wrap(blo, bhi))) { return 1; }
+    return 0;
+}
+
+function differs(alo, ahi, blo, bhi) {
+    return i64.wrap(alo, ahi) != i64.wrap(blo, bhi) ? 1 : 0;
+}
+
+function over_price(alo, ahi) {               // 상수와 비교
+    const a = i64.wrap(alo, ahi);
+    if (a > price) { return 1; }
+    return 0;
+}
+
+function arr_ops(p, v) {                      // 배열 원소: 쓰기, +=, -= (wrap), 포화
+    gold[p] = v;
+    gold[p] += 0x100000000;
+    gold[p] -= 1;
+    gold.isub_sat(p, 7);
+    const e = gold[p];
+    return e.lo, e.hi;
+}
+
+function arr_const(v) {                       // 상수 칸 번호
+    gold[3] = v;
+    gold[3] -= 0x100000000;                   // wrap: v < 2^32 이면 한 바퀴 돈다
+    gold.isub_sat(3, 1);
+    if (gold[3] >= 0xFFFFFFFF00000000) { return 1; }
+    return 0;
+}
+
+function count_down(lo, hi) {                 // 루프 조건은 매번 다시 계산된다
+    const x = i64.wrap(lo, hi);
+    var n = 0;
+    while (x >= 3) {
+        x.isub_sat(3);
+        n += 1;
+    }
+    return n;
+}
+
+function neg(lo, hi) {
+    const x = i64.wrap(lo, hi);
+    const y = -x;
+    return y.lo, y.hi;
+}
+
+function print_to(buf, lo, hi) {              // 10진 출력 (부호 없음, 부호 있음)
+    const x = i64.wrap(lo, hi);
+    dbstr_print(buf, x.fmt(), " ", i64.fmt(x, signed=True));
+}

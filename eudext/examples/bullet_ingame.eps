@@ -1,0 +1,216 @@
+// eudext.bullet 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 D14-* 항목 (정본 명세 S4 7절)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/bullet_ingame.eds --work <작업 폴더>
+// 혼자(P1) 연다. P2 는 컴퓨터(적) — 표적 마린의 주인이다. 줄머리 [D14-번호] 가 체크리스트 항목이다.
+// 화면 줄과 눈으로 본 것(탄이 날아간 쪽, 표적이 죽었는지, 선택·드래그)을 사진이나 글로 알려 주면 된다.
+// 기준 맵(testing/base.scx): 128×128(4096 픽셀), P1 맵 리빌러 64. 로케이션 26 "Location 0" = 총알 로케이션,
+// 27 "CLoc" = 표적을 놓는 자리(옮겨 쓴다).
+//
+// dat 설정은 이 맵 안에서 한다(EUD Editor 없이, BulletDat → 시작 1회 목록). 사용자 맵 관례대로 총알 flingy 의
+// 최고속도를 음수로 둔다(S4 2.3) — 그래서 탄은 유닛 방향(facing) + 128 쪽으로 날아가야 한다.
+//  - 208(Right Pit Door) = UE_RE 탄막 유닛: 무기 127 → flingy 106(그림 344 마그나 펄스), 최고속도 −8001 (UE_RE 값 그대로)
+//  - 210(Left Wall Missile Trap) = 무기 128 → flingy 158(야마토), 최고속도 −2561, 수명 64 (UE_RE Sans 패턴 값)
+//  - 204(Floor Hatch) = 껍데기(shell). 지상 무기를 127(마그나 펄스)로 둔다 → 종류를 210 으로 바꾼 뒤 어느 탄이 나가는지 본다
+import eudext.bullet as bullet;
+import eudext.units as units;
+import eudext.mathx as mx;
+import eudext.datpatch as dat;
+
+// 2026-09-18 인게임 뒤: 유닛끼리 밀려 자리가 어긋나는 것을 막는다 — 유닛 228개 전부의 충돌 상자를 1,1,1,1 로.
+// (공중 유닛끼리 미는 것은 이것과 별개다 — eds 의 [noAirCollision] 이 맡는다.)
+dat.all_unit_size(1);
+
+const kA = bullet.BulletKind(unit=208, weapon=127, flingy=106, dat=bullet.BulletDat(sprite=344));
+const kB = bullet.BulletKind(unit=210, weapon=128, flingy=158, shell=204,
+    dat=bullet.BulletDat(damage=65535, splash=list(8, 8, 8), remove_after=64, top_speed=2560, idle_order=23,
+                         attack_order=23, base_property=0x20000004, attack_angle=0));
+const kB0 = bullet.BulletKind(unit=210, weapon=128, flingy=158);            // 같은 유닛·무기, 껍데기 없이
+const kY = bullet.BulletKind(unit=208, weapon=127, flingy=106, y_offset=10);
+const k6a = bullet.BulletKind(unit=208, weapon=127, flingy=106, remove_timer=240);
+const k6b = bullet.BulletKind(unit=208, weapon=127, flingy=106, recipe="minimal", remove_timer=240);
+const k7 = bullet.BulletKind(unit=208, weapon=127, flingy=106, recipe="minimal");  // 수명 칸을 쓰지 않음
+kA.install();
+kB.install();
+dat.unit(204).set(groundWeapon=127);
+bullet.setup(loc="Location 0");
+
+const tA = units.Capture();
+// 8방향 (SC 진행 방향 0 = 위, 시계 방향) — 표적까지의 거리 200(D14-1)·출발점까지 300(D14-2)
+const dx200 = EUDArray(list(0, 141, 200, 141, 0, -141, -200, -141));
+const dy200 = EUDArray(list(-200, -141, 0, 141, 200, 141, 0, -141));
+const dx300 = EUDArray(list(0, 212, 300, 212, 0, -212, -300, -212));
+const dy300 = EUDArray(list(-300, -212, 0, 212, 300, 212, 0, -212));
+var frame, target, target2, shots, zeroShots, facingBad, hits, fillMade, shellType, e7, e7b, e6count;
+
+function placeTarget(x, y) {                  // P2 마린 하나를 (x, y) 에 놓고 EPD 를 돌려준다 (실패면 0)
+    setloc(27, x, y);
+    tA.begin();
+    CreateUnit(1, "Terran Marine", 27, P2);
+    tA.end();
+    if (tA.ok) { return tA.epd; }
+    return 0;
+}
+
+function isDead(epd) {                        // 주문 0(죽는 중) 또는 스프라이트 0(빈 칸) 이면 1
+    if (epd == 0) { return 1; }
+    if (bread_epd(epd + 19, 1) == 0) { return 1; }
+    if (dwread_epd(epd + 3) == 0) { return 1; }
+    return 0;
+}
+
+function checkFacing(e, want) {               // 만든 탄막 유닛의 +0x21 이 기대 방향인가 (다르면 facingBad += 1)
+    if (e == 0) {
+        facingBad += 1;
+        return 999;
+    }
+    shots += 1;
+    const got = bread_epd(e + 8, 1);
+    if (got != want) { facingBad += 1; }
+    return got;
+}
+
+function d3() {                               // [필수] D14-3: 빈 유닛 칸이 없을 때 0 을 돌려주고 튕기지 않는가
+    fillMade = 0;
+    while (fillMade < 1700) {
+        tA.begin();
+        CreateUnit(1, "Map Revealer", "Anywhere", P2);
+        tA.end();
+        if (tA.failed) { break; }
+        fillMade += 1;
+    }
+    const e1 = bullet.bullet(kA, P1, 2048, 2048, 0);
+    const e2 = bullet.bullet_to(kA, P1, 2048, 2048, 100, 100);
+    const e3 = bullet.bullet_at(kA, P1, "CLoc", 0);
+    if (e1 == 0 && e2 == 0 && e3 == 0) { zeroShots += 1; }
+    printAll("\x07[D14-3] 유닛 칸 가득(P2 리빌러 {}개): bullet={}(0) bullet_to={}(0) bullet_at={}(0) — 튕기지 않고 이 줄이 보이면 OK",
+        fillMade, e1, e2, e3);
+    RemoveUnit("Map Revealer", P2);
+}
+
+function d1(i) {                              // [필수] D14-1: 탄이 facing + 128 쪽으로 날아가는가
+    const h = i * 32;
+    const sx = 400 + 450 * i;
+    target = placeTarget(sx + dx200[i], 700 + dy200[i]);
+    const f = bullet.heading_to_facing(kA, h);
+    const e = bullet.bullet(kA, P1, sx, 700, f);
+    const got = checkFacing(e, f);
+    printAll("[D14-1] 진행 {} 로 쏨 (출발 {},700): facing={}({}) epd={} — 탄이 표적 마린(진행 쪽 200) 쪽으로 가야 함",
+        h, sx, got, f, e);
+}
+
+function d1check(i) {
+    const dead = isDead(target);
+    hits += dead;
+    printAll("[D14-1] 진행 {} 표적 죽음={} (1 이면 명중. 0 이면 탄이 간 쪽을 알려 주세요)", i * 32, dead);
+}
+
+function d2(i) {                              // [필수] D14-2: bullet_to 가 목표를 지나가는가 (출발 = 표적 − 300·방향)
+    const tx = 400 + 450 * i;
+    target = placeTarget(tx, 1600);
+    const sx = tx - dx300[i];
+    const sy = 1600 - dy300[i];
+    const e = bullet.bullet_to(kA, P1, sx, sy, tx, 1600);
+    const want = mx.to_dir256(mx.atan2(sy - 1600, sx - tx));
+    const got = checkFacing(e, want);
+    printAll("[D14-2] 진행 {} 쪽 목표 (출발 {},{} → 표적 {},1600): facing={}({}) — 탄이 표적을 지나가야 함",
+        i * 32, sx, sy, tx, got, want);
+}
+
+function d2check(i) {
+    const dead = isDead(target);
+    hits += dead;
+    printAll("[D14-2] 진행 {} 표적 죽음={} (1 이면 명중)", i * 32, dead);
+}
+
+function d2b() {                              // [필수] D14-2: 가까운 목표·먼 목표·출발 = 목표
+    target = placeTarget(1000, 2400);
+    const eNear = bullet.bullet_to(kA, P1, 1001, 2402, 1000, 2400);
+    const gNear = checkFacing(eNear, mx.to_dir256(mx.atan2(2, 1)));
+    target2 = placeTarget(3600, 2400);
+    const eFar = bullet.bullet_to(kA, P1, 1600, 2400, 3600, 2400);
+    const gFar = checkFacing(eFar, 192);
+    const eSame = bullet.bullet_to(kA, P1, 2600, 2900, 2600, 2900);
+    const gSame = checkFacing(eSame, 128);
+    printAll("\x07[D14-2] 가까운 목표(1,2 픽셀) facing={}({}), 먼 목표(2000 동쪽) facing={}(192), 출발=목표 facing={}(128) — 튕기지 않아야 함",
+        gNear, mx.to_dir256(mx.atan2(2, 1)), gFar, gSame);
+}
+
+function d2bcheck() {
+    const d1v = isDead(target);
+    const d2v = isDead(target2);
+    printAll("[D14-2] 가까운 표적 죽음={} 먼 표적(2000) 죽음={} (1 이면 명중. 먼 표적은 사거리·수명에 따라 0 일 수 있음 — 탄이 간 곳을 알려 주세요)",
+        d1v, d2v);
+}
+
+function d5() {                               // D14-5: y_offset 과 위치 읽기 생략 가능성
+    const a = bullet.bullet(kA, P1, 1000, 3400, 128);
+    const b = bullet.bullet(kY, P1, 1200, 3400, 128);
+    printAll("[D14-5] 만든 위치 y_offset 0: ({},{}) 기대 (1000,3400) / +10: ({},{}) 기대 (1200,3410) — 같으면 위치 읽기를 뺄 수 있음",
+        wread_epd(a + 10, 0), wread_epd(a + 10, 2), wread_epd(b + 10, 0), wread_epd(b + 10, 2));
+}
+
+function d6() {                               // [필수] D14-6: ue_re 의 +0xA3·+0xDC·+0xE4 쓰기가 무엇을 바꾸는가
+    const a = bullet.bullet(k6a, P1, 600, 3000, 0);      // ① ue_re: 세 칸 모두
+    const b = bullet.bullet(k6b, P1, 1100, 3000, 0);     // ② minimal: 세 칸 모두 안 씀
+    const c = bullet.bullet(k6b, P1, 1600, 3000, 0);     // ③ +0xA3 만
+    const d = bullet.bullet(k6b, P1, 2100, 3000, 0);     // ④ +0xDC 만
+    const e = bullet.bullet(k6b, P1, 2600, 3000, 0);     // ⑤ +0xE4 만
+    printAll("[D14-6] 만든 직후(②) +0xA3={} +0xDC={} +0xE4={} / ue_re 뒤(①) +0xA3={} +0xDC={} +0xE4={}",
+        bread_epd(b + 40, 3), dwread_epd(b + 55), dwread_epd(b + 57),
+        bread_epd(a + 40, 3), dwread_epd(a + 55), dwread_epd(a + 57));
+    if (c != 0) { bwrite_epd(c + 40, 3, 0); }
+    if (d != 0) { maskwrite_epd(d + 55, 0x200104, 0x300104); }
+    if (e != 0) { dwwrite_epd(e + 57, 0); }
+    if (a != 0 && b != 0 && c != 0 && d != 0 && e != 0) { e6count = 5; }
+    printAll("\x07[D14-6] y=3000 에 탄막 유닛 5개(10초 삶, 아래로 쏨) 왼쪽부터 ①모두 ②없음 ③A3만 ④DC만 ⑤E4만 — 클릭·드래그 선택, 서로 밀림, 안개 속 보임을 비교해 알려 주세요");
+}
+
+function d7() {                               // D14-7: 수명 칸을 안 쓰면 쏜 뒤 유닛이 남는가
+    e7 = bullet.bullet(k7, P1, 3200, 3300, 0);
+    e7b = bullet.bullet(kA, P1, 3600, 3300, 0);
+    printAll("[D14-7] (3200,3300) 수명 안 씀 epd={} / (3600,3300) 수명 12 epd={} — 3초 뒤 상태를 적습니다", e7, e7b);
+}
+
+function d7check() {
+    printAll("[D14-7] 3초 뒤: 수명 안 씀 → 주문={} 종류={} 스프라이트={} / 수명 12 → 주문={} 종류={} 스프라이트={} (주문 0·스프라이트 0 = 사라짐, 칸이 다시 쓰였으면 종류가 다름)",
+        bread_epd(e7 + 19, 1), wread_epd(e7 + 25, 0), dwread_epd(e7 + 3),
+        bread_epd(e7b + 19, 1), wread_epd(e7b + 25, 0), dwread_epd(e7b + 3));
+}
+
+function d8() {                               // [필수] D14-8: 종류를 바꾼 뒤 어느 무기로 쏘는가
+    const s = bullet.bullet(kB, P1, 1000, 3700, 128);    // 왼쪽: 204 로 만들고 210 으로 교체
+    const d = bullet.bullet(kB0, P1, 1600, 3700, 128);   // 가운데: 210 직접 (무기 128 = 야마토)
+    const m = bullet.bullet(kA, P1, 2200, 3700, 128);    // 오른쪽: 208 (무기 127 = 마그나 펄스)
+    shellType = wread_epd(s + 25, 0);
+    printAll("\x07[D14-8] y=3700 에서 위로 3발: 왼쪽 204→{}(210), 가운데 210 직접, 오른쪽 208 — 왼쪽 탄이 가운데(야마토)와 같으면 바뀐 종류의 무기, 오른쪽(마그나 펄스)과 같으면 껍데기의 무기",
+        shellType);
+    if (d == 0 || m == 0) { facingBad += 1; }
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        printAll("\x07[D14] eudext.bullet 확인 맵: 약 60초 동안 차례로 쏩니다. [필수] 줄과 눈으로 본 것을 알려 주세요");
+    }
+    if (frame == 4) { d3(); }
+    if (frame >= 24 && frame < 216) {         // D14-1: 24 사이클마다 한 방향, 12 사이클 뒤 명중 확인
+        const k1 = frame - 24;
+        if (k1 % 24 == 0) { d1(k1 / 24); }
+        if (k1 % 24 == 12) { d1check(k1 / 24); }
+    }
+    if (frame >= 240 && frame < 432) {        // D14-2
+        const k2 = frame - 240;
+        if (k2 % 24 == 0) { d2(k2 / 24); }
+        if (k2 % 24 == 12) { d2check(k2 / 24); }
+    }
+    if (frame == 456) { d2b(); }
+    if (frame == 480) { d2bcheck(); }
+    if (frame == 492) { d5(); }
+    if (frame == 516) { d6(); }
+    if (frame == 540) { d7(); }
+    if (frame == 576) { d7check(); }
+    if (frame == 600) { d8(); }
+    if (frame == 660) {
+        printAll("\x07[D14] 끝: 만든 탄 {} (32 이상), 방향 불일치 {}(0), 칸 가득 시험 0 반환 {}(1), 표적 죽음 {}(D14-1·2 의 16 중)",
+            shots, facingBad, zeroShots, hits);
+    }
+}

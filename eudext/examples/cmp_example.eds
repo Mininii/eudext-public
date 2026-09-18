@@ -1,0 +1,22 @@
+:: eudext.cmp 예제 빌드 설정 (euddraft 0.11.0.1)
+:: 저장소 밖에서 빌드한다: python eudext/tools/build.py euddraft eudext/examples/cmp_example.eds --work <작업 폴더>
+:: (이 폴더에서 바로 빌드하면 cmp_example_out.scx 와 __epspy__ 가 여기에 생긴다.)
+:: eds 줄에는 끝 주석을 달 수 없다. 주석 줄은 '::' 로 시작한다. 경로는 '/' 로 쓴다.
+
+[main]
+input : ../testing/base.scx
+output : cmp_example_out.scx
+
+[../boot.py]
+EudextRoot : ../..
+
+[cmp_example.eps]
+
+:: [eudTurbo] = euddraft 0.11 번들 플러그인 (afterTriggerExec 에서 0x6509A0 = 0) — 트리거를 매 프레임 돌게 한다.
+:: 인게임 G-1(2026-09-18): 터보가 없으면 한 사이클이 약 28~30프레임(1.2초)이라 맵의 프레임 수가 30배 늦게 간다.
+:: eudext 모듈·확인 맵은 모두 "한 사이클 = 한 프레임"(사용자 맵의 CtrigAsm EUDTurbo 와 같은 상태)을 전제한다.
+
+[eudTurbo]
+
+[freeze]
+freeze : 0

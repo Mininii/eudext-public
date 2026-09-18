@@ -1,0 +1,37 @@
+// eudext.plot 예제 — DESIGN 4.13 (좌표표를 루프 하나로 찍기)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/plot_example.eds --work <작업 폴더>
+// 루프 본문은 `foreach (pt : pl.each())` 로 쓴다(epScript 에는 콜백·람다가 없다). continue = 이 점 건너뛰기.
+import eudext.shape as shape;
+import eudext.plot as plot;
+
+const cx = shape.CX(seed=1234);
+const ring = cx.call("CSMakeCircle", 6, 32, 0, 37, 0);     // 0° = 12시, 시계 방향
+const ray = cx.call("CSMakeLine", 1, 32, 0, 6, 1);         // 12시 방향으로 5점
+const shapes = shape.ShapeSet(list(ring, ray));
+// 로케이션 26 = 기준 맵의 빈 로케이션(찍기 전용). 점마다 옮겨지고 되돌리지 않는다
+const pl = plot.Plotter(shapes, unit="Terran Marine", owner=P8, loc=26, per_tick=4, delay=1);
+
+var frame, made, skipped, rounds, lastIdx, rx, ry;
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        plot.create_shape(shapes, 1, "Zerg Scourge", 27, P8, center=list(2048, 2048));   // 한 번에 모두 (CSPlot 루프판)
+        const a, b = plot.rotate(0, -32, 90);       // 상수 → 파이썬에서 계산: (32, 0). 런타임 각 0 = +x, 양의 각 = 시계 방향
+        rx = a;
+        ry = b;
+    }
+    if (pl.done) {                                  // 끝나면 오른쪽으로 100 옮겨 다시
+        pl.start(0, center=list(1024 + 100 * rounds, 1024));
+        rounds += 1;
+    }
+    foreach (pt : pl.each()) {                      // 이번 프레임에 찍을 점마다 (생성 직전)
+        if (pt.index == 1) {
+            skipped += 1;
+            continue;                               // 이 점은 만들지 않는다
+        }
+        pt.x += 10;                                 // 도형 좌표를 고친다 (중심은 그 뒤에 더해진다)
+        made += 1;
+        lastIdx = pt.index;
+    }
+}

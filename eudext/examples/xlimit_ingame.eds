@@ -1,0 +1,24 @@
+:: 27 X_limit 빌드 설정 — 유닛 한도 세션 (튕길 위험: B10-1(b)·B10-8 한도·B10-9·D14-3·D14-2 출발=목표)
+:: 03·10 맵에서 위험한 부분만 떼어 왔다. 통합 맵(auto_all)에는 없다.
+:: 빌드: python eudext/tools/ingame_maps.py --out <폴더> X_limit
+
+[main]
+input : ../testing/base.scx
+output : 27_X_limit.scx
+
+[../boot.py]
+EudextRoot : ../..
+Preload : dbg, units, bullet
+
+[dbg_setup.py]
+WatchSlots : 64
+Probes : 128
+
+[xlimit_ingame.eps]
+
+:: [eudTurbo] = euddraft 0.11 번들 플러그인 — 트리거를 매 프레임 돌게 한다 (인게임 G-1)
+
+[eudTurbo]
+
+[freeze]
+freeze : 0

@@ -1,0 +1,26 @@
+:: 25b display 좁히기 맵 빌드 설정 — 13번째 줄·TBL 쓰기 가운데 어디서 게임이 멈추는지 한 번에 좁힌다.
+:: 2026-09-18 인게임: 통합 맵 display 단계에서 EUD ERROR(0xFF9BE98B) 로 멈췄다 (display_bisect.py 머리말의 단계 표).
+:: 빌드: python eudext/tools/ingame_maps.py --out <폴더> bisect
+:: 여는 법: 혼자(P1). 단계 18개가 1초에 하나씩 돈다(약 20초). 게임이 멈추면 그대로 두고 RUN.bat --once 를 돌린다.
+:: eds 줄에는 끝 주석을 달 수 없다. 주석 줄은 '::' 로 시작한다.
+
+[main]
+input : ../testing/base.scx
+output : 25b_display_bisect.scx
+
+[../boot.py]
+EudextRoot : ../..
+Preload : dbg, numfmt, display
+
+[dbg_setup.py]
+WatchSlots : 128
+Probes : 256
+
+[display_bisect.py]
+
+:: [eudTurbo] = euddraft 0.11 번들 플러그인 (afterTriggerExec 에서 0x6509A0 = 0) — 트리거를 매 프레임 돌게 한다.
+
+[eudTurbo]
+
+[freeze]
+freeze : 0

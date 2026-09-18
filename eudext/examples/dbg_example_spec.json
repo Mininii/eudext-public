@@ -1,0 +1,25 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "dbg_example",
+ "title": "eudext dbg 예제 (인게임 G-2)",
+ "done": ["done"],
+ "timeout_s": 60,
+ "stall_s": 10,
+ "suites": [
+  {"name": "g1", "phase": 1, "timeout_s": 20},
+  {"name": "g2", "phase": 2, "timeout_s": 20, "items": [
+   {"id": "g2.sec", "kind": "check", "name": "g2.sec", "total": 1}
+  ]}
+ ],
+ "items": [
+  {"id": "G-2a", "kind": "result", "name": "g.total", "total": 3, "read": ["result g.total"], "expect": "3 / 3"},
+  {"id": "G-2b", "kind": "watch", "name": "big", "min": 96000000000, "expect": "96 프레임 × 10억 이상"},
+  {"id": "G-2c", "kind": "hit", "name": "tick", "min": 96},
+  {"id": "G-2d", "kind": "hit", "name": "second", "min": 4},
+  {"id": "G-2e", "kind": "text", "name": "line", "regex": "^eudext dbg \\d+ sec$"},
+  {"id": "G-2f", "kind": "hdr", "field": "local_player", "max": 7},
+  {"id": "G-2g", "kind": "wall", "metric": "fps", "min": 1},
+  {"id": "G-2h", "kind": "manual", "expect": "화면에 '[G-1] eudext dbg 예제 끝' 줄이 한 번 뜬다"}
+ ]
+}

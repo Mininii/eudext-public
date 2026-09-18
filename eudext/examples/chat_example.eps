@@ -1,0 +1,25 @@
+// eudext.chat 사용 예 (epScript) — 옛 채팅 효과 블록(HTextEff + CDPrint)을 타자기 하나로 옮긴 모양.
+// 번역·에뮬레이터·euddraft 빌드 시험: tests/t_chat.py. 화면 확인은 examples/chat_ingame.eds.
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/chat_example.eds --work <작업 폴더>
+//
+// 옛 코드:  CDPrint(0,11,{"\x0D",0,0},{Force1,Force2,Force5},{1,0,0,0,1,1,0,0},"HTextEff",FP)   + 문구 "\x0D\x0D!H\x13…"
+// 새 코드:  const tw = chat.Typewriter();  tw.tick();                                            + 문구 tw.mark("\x13…")
+import eudext.chat as chat;
+import eudext.players as pl;
+import eudext.local as local;
+
+const tw = chat.Typewriter(targets=pl.Everyone, speed=1, erase=2);   // 기본값을 적어 보인 것 (marker=b"\r\r!H")
+var frame, activeTop, topSlot;
+
+function afterTriggerExec() {
+    if (frame == 1) {
+        // 여러 줄 문구는 줄마다 표식이 붙는다
+        DoActions(DisplayTextAll(tw.mark("\x13\x04첫 줄 — 한 글자씩\n\x07둘째 줄 abc")));
+    }
+    tw.tick();                                   // 매 프레임 한 번 (안에서 이 PC 가 대상인지 본다)
+    local.begin();                               // 채팅 줄 판정·위치는 로컬 값
+    topSlot = chat.slot_of_row(0);               // 화면 맨 위 줄의 slot
+    if (chat.line_active(0)) { activeTop = 1; } else { activeTop = 0; }
+    local.end();
+    frame += 1;
+}

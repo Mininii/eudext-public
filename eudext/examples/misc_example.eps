@@ -1,0 +1,40 @@
+// eudext misc 예제 (epScript) — 관전자 채팅·카운트다운·방장 (DESIGN 4.19, S6 4.3)
+//
+//   misc.ObserverChat()      관전자 채팅 대상 전환 (END=관전자·HOME=전체·INSERT=대상없음, 원본 딜레이 버그 고침)
+//   obs.tick()               매 프레임 한 번 — 관전자 PC 에서만 동작 (안에서 로컬 분기)
+//   misc.Countdown(n)        0 에서 멈추는 카운트다운 (cd.tick()·cd.done()·cd.set()·cd.at_least())
+//   misc.host_player()       방장 번호 (관전자 방장이면 0xFFFFFFFF) — 게임 시작 때 한 번
+//   misc.HostNameIs("이름")  방장 이름 조건
+//
+// 모듈 함수는 f_ 로 번역된다(misc.host_player → misc.f_host_player). 클래스·메서드는 그대로.
+import eudext.misc as misc;
+import eudext.local as local;
+
+const obs = misc.ObserverChat();
+const cd = misc.Countdown(240);          // 10초(24fps)
+const host = misc.host_player();
+
+var frame;
+var cdDone;
+var hostSlot;
+
+function afterTriggerExec() {
+    frame += 1;
+    obs.tick();                          // 관전자 채팅 (관전자 PC 에서만)
+    cd.tick();                           // 카운트다운 1 감소 (0 에서 멈춤)
+    if (cd.done()) { cdDone = 1; }
+
+    if (frame == 24) {
+        hostSlot = host;                 // 방장 번호를 읽어 둔다
+        if (misc.HostNameIs("Mininii")) {
+            DisplayTextAll("\x04방장이 Mininii 입니다");
+            setcurpl2cpcache();
+        }
+    }
+    if (frame == 240) {
+        DisplayTextAll("\x04카운트다운 끝");
+        setcurpl2cpcache();
+        cd.set(240);                     // 다시 시작
+    }
+    local.update();                      // 엣지 캐시 (obs 가 기본 레벨이면 없어도 되지만 관례상 둔다)
+}

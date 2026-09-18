@@ -1,0 +1,215 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "27_X_limit",
+ "title": "유닛 한도 채우기·칸 가득 총알 (B10-1(b)·B10-8·B10-9·D14-3·D14-2 출발=목표)",
+ "timeout_s": 300,
+ "items": [
+  {
+   "kind": "group",
+   "id": "B10-1",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "xl.t9.fill",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "xl.t9.ok",
+     "equals": 0
+    },
+    {
+     "kind": "mark",
+     "name": "xl.t9.ptr",
+     "equals": 0
+    },
+    {
+     "kind": "mark",
+     "name": "xl.t9.idx",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "xl.t9.head",
+     "min": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m03.t4_ok1, t4_ok2, t4_head_before, t4_head_after",
+     "watch m03.t9_fill, t9_ok, t9_ptr, t9_idx, t9_head"
+    ],
+    "expect": "(a) T4 첫 CC ok=1, 겹친 CC ok=0, 머리 전 = 후. (b) T9 마지막 ok=0 ptr=0 idx=1700 머리=1700, 채운 수 기록(한도가 1700 이 아니면 그 수)",
+    "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): (a) frame >= 4, (b) frame >= 31",
+    "category": "AUTO",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "03 units_ingame",
+    "bundle": "auto_all (a) + X_limit (b 한도)",
+    "notes": "(a) 는 auto_all phase 1 에서 자동, (b) 만 사용자가 따로 보는 X_limit 맵",
+    "risk": "(b) 유닛 한도까지 채우기 — 한 프레임 약 5만 트리거 + 유닛 1,600여 마리 생성. 멈춤·긴 렉 가능",
+    "extra": [
+     "CRASH_RISK"
+    ],
+    "instrument": "units_ingame.eps t4/t9 의 지역 값을 전역 변수로 옮겨 dbg.watch. t9(1,600여 마리 채우기)는 별도 파일로 떼어 X_limit 맵에"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "B10-8",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "xl.dying.limit",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "xl.dying.total",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m03.dead_seen[프레임별]",
+     "watch m03.cc_deaths, cc_mark, cc_tag"
+    ],
+    "expect": "F8 에 마린 6마리 죽음 알림 6줄(한 번씩), CC 알림 1회, mark=0 tag=0. (한도 부분) F32 뒤 합계가 프레임마다 40씩 늘다 멈춤",
+    "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 45 (한도 부분은 X_limit 에서 frame >= 80)",
+    "category": "AUTO",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "03 units_ingame",
+    "bundle": "auto_all + X_limit (limit=40 부분)",
+    "risk": "limit=40 확인은 t9 채우기 뒤라 X_limit 맵",
+    "extra": [
+     "CRASH_RISK"
+    ],
+    "instrument": "dying 루프의 deadSeen 을 프레임별 배열로 dbg.watch_mem"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "B10-9",
+   "items": [
+    {
+     "kind": "wall",
+     "metric": "max_gap_s",
+     "min": 0
+    },
+    {
+     "kind": "wall",
+     "metric": "fps",
+     "min": 0.2
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "hdr:seq 증가 + wall (2초 이상 seq 정지 = 멈춤, 블록 사라짐 = 게임 종료/튕김)",
+     "wall: t9 프레임(F30 전후)의 프레임 시간"
+    ],
+    "expect": "끊김 체감 — 브리지는 F30 프레임 시간(ms)·F30~F40 평균 프레임/초를 기록",
+    "done_marker": "frame >= 40",
+    "category": "CRASH_RISK",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "03 units_ingame",
+    "bundle": "X_limit",
+    "risk": "유닛 한도 채우기와 같은 프레임",
+    "extra": [
+     "VISUAL",
+     "AUTO"
+    ],
+    "instrument": "없음(헤더 seq·프레임만)"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "D14-3",
+   "items": [
+    {
+     "kind": "check",
+     "name": "xl.D14-3.zero"
+    },
+    {
+     "kind": "mark",
+     "name": "xl.D14-3.e1",
+     "equals": 0
+    },
+    {
+     "kind": "mark",
+     "name": "xl.D14-3.e2",
+     "equals": 0
+    },
+    {
+     "kind": "mark",
+     "name": "xl.D14-3.e3",
+     "equals": 0
+    },
+    {
+     "kind": "mark",
+     "name": "xl.D14-3.fill",
+     "min": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m10.fillMade, e1, e2, e3, zeroShots",
+     "hdr:seq 증가 + wall (2초 이상 seq 정지 = 멈춤, 블록 사라짐 = 게임 종료/튕김)"
+    ],
+    "expect": "bullet=0, bullet_to=0, bullet_at=0 (zeroShots 1), 그 뒤 seq 계속. 채운 수 기록(기준 맵이면 1634 근처)",
+    "done_marker": "m10.frame >= 10 + 2초 동안 seq 계속",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "10 bullet_check",
+    "bundle": "X_limit",
+    "risk": "유닛 칸 1,700 가득 + 탄 생성 시도",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "d3() 값 dbg.watch, d3 를 X_limit 맵으로 떼기"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "D14-2",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "xl.D14-2.same",
+     "equals": 128
+    }
+   ],
+   "checklist": false,
+   "info": {
+    "read": [
+     "watch_mem m10.d2_facing/want/dir/dead[8]",
+     "watch m10.near_facing, far_facing, same_facing, near_dead, far_dead"
+    ],
+    "expect": "8발 facing = 기대·진행 방향이 표적 쪽·표적 죽음 1, 가까운 목표 facing = to_dir256(atan2(2,1)), 먼 목표 192, 출발=목표 128. 먼 표적 죽음은 사거리에 따라 0 가능(기록)",
+    "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m10.frame >= 480",
+    "category": "AUTO",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "10 bullet_check",
+    "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 10 / 출발=목표 한 발은 X_limit",
+    "risk": "출발 = 목표 탄(0 벡터) 한 발 — 튕길 가능성은 낮지만 '튕기지 않는가' 가 질문이라 X_limit 로 옮기기를 권장",
+    "extra": [
+     "VISUAL",
+     "CRASH_RISK"
+    ],
+    "instrument": "D14-1 과 같게 d2/d2b 계측"
+   }
+  }
+ ],
+ "done": [
+  "done"
+ ],
+ "stall_s": 30
+}

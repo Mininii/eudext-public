@@ -1,0 +1,16 @@
+:: eudext.display 예제 빌드 설정 (euddraft 0.11.0.1)
+:: 저장소 밖에서 빌드한다: python eudext/tools/build.py euddraft eudext/examples/display_example.eds --work <작업 폴더>
+:: eds 줄에는 끝 주석을 달 수 없다. 주석 줄은 '::' 로 시작한다. 경로는 '/' 로 쓴다.
+
+[main]
+input : ../testing/base.scx
+output : display_example_out.scx
+
+[../boot.py]
+EudextRoot : ../..
+Preload : i64, numfmt, display
+
+[display_example.eps]
+
+[freeze]
+freeze : 0

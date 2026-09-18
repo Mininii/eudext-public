@@ -1,0 +1,143 @@
+// eudext.plot 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 D7-* (WP7 shape/plot)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/plot_ingame.eds --work <작업 폴더>
+// StarCraft: Remastered 에서 혼자(P1) 연다. 화면이 맵 가운데(로케이션 13, (2048, 2048))로 옮겨진다.
+// 줄머리 [D7-n] 이 체크리스트 항목이다. 찍힌 모양·순서·속도를 사진·영상이나 글로 알려 주면 된다.
+// 도형은 컴파일 시점에 lupa 로 CB Paint v2.5 를 그대로 돌려 만들었다(원본 TEP 와 좌표가 같음 — tests/t_shape.py).
+// 유닛: 원 = 스커지, 별 = 뮤탈리스크, 12시 막대 = 레이스, 정적 회전 막대 = 스카우트, 실행 회전 막대 = 커세어.
+// 만든 유닛은 P1 것이다. 확인이 끝날 때까지 건드리지 않는다.
+import eudext.shape as shape;
+import eudext.plot as plot;
+import eudext.datpatch as dat;
+
+// 2026-09-18 인게임 뒤: 유닛끼리 밀려 자리가 어긋나는 것을 막는다 — 유닛 228개 전부의 충돌 상자를 1,1,1,1 로.
+// (공중 유닛끼리 미는 것은 이것과 별개다 — eds 의 [noAirCollision] 이 맡는다.)
+dat.all_unit_size(1);
+
+const cx = shape.CX(seed=1234);
+const _dia = cx.run("function EudextDiamond(W, H, S) local P = {} for x = -W, W, S do local L = math.floor(H * (1 - math.abs(x) / W)) for y = -math.floor(L / S) * S, L, S do P[#P + 1] = {x, y} end end local R = {#P} for i, v in ipairs(P) do R[i + 1] = v end return R end");
+const circle = cx.call("CSMakeCircle", 6, 32, 0, 19, 0);                     // 가운데 1 + 고리 6 + 고리 12 (반지름 32, 64)
+const star = cx.eval("CSMakeStar(5, 144, 48, 0, CS_Level('Star', 5, 3), 0)"); // 31점 별
+const ray = cx.call("CSMakeLine", 1, 32, 0, 6, 1);                            // 12시 방향 막대 5점 (0,-32)~(0,-160)
+const rayR = cx.call("CS_Rotate", ray, 90);                                   // 정적 회전 90° → 3시 방향 (32,0)~(160,0)
+const dia = cx.call("EudextDiamond", 256, 96, 32);                            // 가로 512 × 세로 192 다이아몬드 51점
+const fade = dia.sweep("right", px_per_cycle=32);                             // 왼→오, 17열 (1,1,1,3,3,3,5,5,7,5,5,3,3,3,1,1,1)
+const shapes = shape.ShapeSet(list(circle, star, ray, rayR, fade));           // sid 0 ~ 4
+
+const pA = plot.Plotter(shapes, unit="Zerg Scourge", owner=P1, loc=26, per_tick=1, delay=4);
+const pB = plot.Plotter(shapes, unit="Zerg Mutalisk", owner=P1, loc=26, per_tick=1, delay=4);
+const pC = plot.Plotter(shapes, unit="Terran Wraith", owner=P1, loc=26, per_tick=1, delay=4);
+const pD = plot.Plotter(shapes, unit="Protoss Scout", owner=P1, loc=26, per_tick=1, delay=4);
+const pE = plot.Plotter(shapes, unit="Protoss Corsair", owner=P1, loc=26, per_tick=1, delay=4);
+const pF = plot.Plotter(shapes, unit="Zerg Scourge", owner=P1, loc=26, per_tick=6, delay=1);
+const pG = plot.Plotter(shapes, unit="Zerg Mutalisk", owner=P1, loc=26, per_tick=6, delay=8);
+const pS = plot.Plotter(shapes, unit="Zerg Scourge", owner=P1, loc=26, per_tick=1, delay=4);
+const pR = plot.Plotter(shapes, unit="Terran Wraith", owner=P1, loc=26, per_tick=2, delay=2, repeat=True);
+
+// 시험(tests/t_plot.py)이 읽는 값
+const PH2 = 201;
+const PH3 = 301;
+const PH4 = 421;
+const PH5 = 540;
+const TOTAL_FRAMES = 545;
+const LAST_PHASE = 5;
+const CHECKS = 15;
+const MADE_TOTAL = 211;   // 19 + 31 + 5 + 5 + 5 + 19 + 19 + 51 + 19×3
+
+var frame, phase, made, checks, good, rounds;
+
+function clearUnits() {
+    RemoveUnit("Zerg Scourge", P1);
+    RemoveUnit("Zerg Mutalisk", P1);
+    RemoveUnit("Terran Wraith", P1);
+    RemoveUnit("Protoss Scout", P1);
+    RemoveUnit("Protoss Corsair", P1);
+}
+
+function check(ok) {
+    checks += 1;
+    if (ok) { good += 1; }
+    else { printAll("\x08[D7] 점검 {} 다름 (프레임 {})", checks, frame); }
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        phase = 1;
+        setcurpl(0);
+        CenterView("Location 13");
+        printAll("\x07[D7-1] 모양·방향: 네 도형이 4프레임마다 한 점씩 찍힌다. 원(스커지)·별(뮤탈)은 위, 막대 셋은 아래");
+        printAll("\x07[D7-1] 원: 가운데 → 바로 위(12시) → 시계 방향 6점 → 다시 12시(반지름 64) → 시계 방향 12점 (기대)");
+        printAll("\x07[D7-1] 막대: 왼쪽(레이스) 위로 뻗음, 가운데(스카우트)·오른쪽(커세어) 오른쪽으로 뻗음 — 가운데 = 오른쪽 모양 (기대)");
+        pA.start(0, center=list(1850, 1880));
+        pB.start(1, center=list(2230, 1880));
+        pC.start(2, center=list(1800, 2260));
+        pD.start(3, center=list(1950, 2230));
+        pE.start(2, center=list(2150, 2230));
+    }
+    if (frame == PH2) {
+        phase = 2;
+        clearUnits();
+        printAll("\x07[D7-2] 속도: 왼쪽 원은 한 프레임에 6점씩(4프레임에 끝), 오른쪽 원은 8프레임마다 6점씩(25프레임에 끝) (기대)");
+        pF.start(0, center=list(1850, 2048));
+        pG.start(0, center=list(2230, 2048));
+    }
+    if (frame == PH3) {
+        phase = 3;
+        clearUnits();
+        printAll("\x07[D7-3] 스케줄: 가로 다이아몬드가 왼쪽 끝부터 한 열(32px)씩 4프레임마다 오른쪽으로 채워진다, 17열 (기대)");
+        pS.start(4, center=list(2048, 2048));
+    }
+    if (frame == PH4) {
+        phase = 4;
+        clearUnits();
+        printAll("\x07[D7-4] 반복: 가운데 원이 2프레임마다 2점씩 그려지고, 다 그리면 지워지고 다시 그려진다. 세 번 뒤 멈춤 (기대)");
+        pR.start(0, center=list(2048, 2048));
+    }
+    if (pR.index == 0 && rounds == 3) { pR.stop(); }
+
+    foreach (pt : pA.each()) { made += 1; }
+    foreach (pt : pB.each()) { made += 1; }
+    foreach (pt : pC.each()) { made += 1; }
+    foreach (pt : pD.each()) { made += 1; }
+    foreach (pt : pE.each()) {
+        pt.rotate(90);                                   // 런타임 회전(CA_Rotate): 12시 막대 → 3시
+        const sx, sy = shapes.point_at(3, pt.index);     // 정적 회전(CS_Rotate) 결과와 같아야 한다
+        if (pt.x == sx && pt.y == sy) { check(1); } else { check(0); }
+        made += 1;
+    }
+    foreach (pt : pF.each()) { made += 1; }
+    foreach (pt : pG.each()) { made += 1; }
+    foreach (pt : pS.each()) { made += 1; }
+    foreach (pt : pR.each()) {
+        if (pt.index == 0) {
+            RemoveUnit("Terran Wraith", P1);
+            rounds += 1;
+        }
+        made += 1;
+    }
+
+    if (frame == 120) { if (pB.busy) { check(1); } else { check(0); } }
+    if (frame == 121) {
+        if (pB.done) { check(1); } else { check(0); }
+        if (pA.done && pC.done && pD.done && pE.done) { check(1); } else { check(0); }
+        printAll("\x07[D7-1] 찍기 끝 — 원·별·막대 모양과 순서를 알려 주세요");
+    }
+    if (frame == PH2 + 3) { if (pF.done) { check(1); } else { check(0); } }
+    if (frame == PH2 + 23) { if (pG.busy) { check(1); } else { check(0); } }
+    if (frame == PH2 + 24) {
+        if (pG.done) { check(1); } else { check(0); }
+        printAll("\x07[D7-2] 두 원 끝 (오른쪽이 약 1초 늦게 끝나면 정상)");
+    }
+    if (frame == PH3 + 63) { if (pS.busy) { check(1); } else { check(0); } }
+    if (frame == PH3 + 64) {
+        if (pS.done) { check(1); } else { check(0); }
+        printAll("\x07[D7-3] 다이아몬드 끝 (약 2.7초 동안 왼→오로 고르게 채워지면 정상)");
+    }
+    if (frame == PH5) {
+        phase = 5;
+        if (rounds == 3 && pR.done) { check(1); } else { check(0); }
+        if (made == MADE_TOTAL) { check(1); } else { check(0); }
+        printAll("\x07[D7-4] 원 {} 번 그림 (3), 만든 점 {} ({})", rounds, made, MADE_TOTAL);
+        printAll("\x07[D7-5] 점검 {} / {} (같으면 정상, 기대 {})", good, checks, CHECKS);
+    }
+}

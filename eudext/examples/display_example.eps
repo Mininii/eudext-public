@@ -1,0 +1,28 @@
+// eudext.display 예제 — DisplayPrint 대체 (DESIGN 4.7, docs/spec/S3_display.md 7.8)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/display_example.eds --work <작업 폴더>
+// 모듈 함수는 f_ 로 번역된다: dp.show(…) → dp.f_show(…). 대문자 이름(dp.LOCAL, dp.PName, dp.Template)은 그대로.
+import eudext.display as dp;
+import eudext.numfmt as nf;
+import eudext.strdesign as sd;
+import eudext.players as pl;
+
+const style = sd.set_style("seed");      // 전역에서 부르는 설정 함수는 const 로 받는다
+var gold;
+var hp;
+var gcp;
+const goal = dp.Template("목표 ", gold);   // 임무 목표 창 등에 넣을 동적 문자열 (DisplaySTRX)
+
+function afterTriggerExec() {
+    // 모든 PC 가 각자 자기 화면에 (DPS LCP 관용구). 맨 변수는 부호 있는 10진, 만 단위는 nf.Man
+    dp.show(dp.LOCAL, "\x07HP ", hp, " / 골드 ", nf.Man(gold, colors="dps", after=0x04), every=2);
+    // 사람 플레이어에게 (관전자 제외) — 여러 줄 UI 는 고정 구역 안에서 매 프레임 같은 줄에
+    dp.begin_pinned();
+    dp.show(pl.Humans, list(sd.wrap(dp.LocalName(), " 님 차례")));
+    dp.end_pinned();
+    // 13번째 줄(오류 줄) — 공유 조건에서 부른다
+    dp.show_line13(gcp, "골드 부족: ", hp);
+    // 버튼 설명(stat_txt.tbl) — 모든 PC 에서 쓴다. 끝에 U+2009 + NUL
+    dp.set_tbl(92, "\x08자동사냥 \x1C", hp, "\x04단계");
+    goal.update();
+    DoActions(DisplayTextAll(goal.string));
+}

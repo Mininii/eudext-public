@@ -1,0 +1,161 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "01_S8_SubtractTest",
+ "title": "S8 마스크 Subtract·Add 식 (A-1)",
+ "timeout_s": 120,
+ "items": [
+  {
+   "kind": "group",
+   "id": "A-1",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m01.SUBX.match",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m01.ADDX.match",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m01.S1",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.S2",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.S3",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.S4",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.S5",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.X1",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.X2",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.X3",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.P1",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.P2",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.P3",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.F1",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.E1",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.E2",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.E3",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.E4",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m01.E5",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m01.got[S1..S5, X1..X3, P1..P3, F1, E1..E5] (시험 칸 17개 원시 값)",
+     "watch m01.subx[모형 7], m01.addx[모형 3] (모형별 맞은 수)"
+    ],
+    "expect": "SUBX 에서 5/5 인 모형 하나, ADDX 에서 3/3 인 모형 하나(에뮬레이터 가정은 A2·M). 리더가 S8_subtract.md 8절 표로 got 값에서 모형을 다시 계산해 이름을 기록. 둘 다 없으면 got 17개를 그대로 기록",
+    "done_marker": "통합 맵: aa.s8.end > 0 (phase 4 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m01.done = run_tests 를 마친 프레임(첫 프레임)",
+    "category": "AUTO",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "01 S8_SubtractTest",
+    "bundle": "auto_all",
+    "instrument": "docs/spec/S8_ingame/s8_ingame.py beforeTriggerExec: run_tests() 직후 각 cell 값을 dbg.watch 로(이름은 _print_line 의 줄 이름). 이 파일은 eudext 부트 없는 순수 플러그인이라 dbg 모듈이 eudplib 만으로 import 되어야 하고, 입력 맵을 CBTest.scx 대신 testing/base.scx 로 바꿔도 되는지(메모리 칸만 씀) 확인"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "B15-5",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m01.SUBX.match",
+     "mask": 2,
+     "equals": 2
+    },
+    {
+     "kind": "mark",
+     "name": "m01.ADDX.match",
+     "mask": 1,
+     "equals": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "A-1 결과"
+    ],
+    "expect": "A-1 에서 정한 마스크 Add/Subtract 식이 에뮬레이터 식과 같은가(게임 불필요)",
+    "done_marker": "통합 맵: aa.s8.end > 0 (phase 4 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): A-1 판정 뒤",
+    "category": "AUTO",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "01 S8 (A-1 결과)",
+    "bundle": "auto_all",
+    "notes": "A-1 과 같은 시험 — 따로 여는 맵 없음",
+    "instrument": "없음"
+   }
+  }
+ ],
+ "done": [
+  "done"
+ ]
+}

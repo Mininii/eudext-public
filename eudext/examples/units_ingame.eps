@@ -1,0 +1,152 @@
+// eudext.units 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 배치 B 의 B-10-* 항목
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/units_ingame.eds --work <작업 폴더>
+// 혼자(P1) 연다. 줄머리 [T번호] 가 체크리스트 항목이다. 화면 줄을 사진이나 글로 알려 주면 된다.
+// 기준 맵(testing/base.scx): 128×128, P1 맵 리빌러 64개 + 시작 위치 2개, 로케이션 3 = 점 (2048, 683).
+//
+// CUnit 칸은 원시 읽기로 본다: +0x08 HP, +0x0C 스프라이트, +0x4C 주인, +0x4D 주문, +0x64 종류, +0x70 서브유닛,
+// +0xA5 고유 바이트, +0x110 removeTimer (EPD 칸: 2, 3, 19, 19(1), 25, 28, 41(1), 68)
+import eudext.units as units;
+
+const data = units.UnitData(alive="byte", mark="dword");   // new_units(clear=) → dying(key="alive") 가 쓰는 표
+const data2 = units.UnitData(tag="dword");                   // clear_on_death 가 쓰는 표 (dying 과 같은 표에 쓰면
+                                                             // limit 으로 남긴 칸의 표식까지 지운다)
+const u = units.Capture();
+var frame, okv, killSlot, ccSlot, ccDeaths, deadSeen, newCount, fillMade, t8Slot;
+
+function head() {                              // 0x628438 의 칸 번호 (빈 칸이 없으면 1700)
+    return units.index(dwread(0x628438));
+}
+
+function okValue() {
+    if (u.ok) { return 1; }
+    return 0;
+}
+
+function t1() {                                // B-10-2: 만든 유닛이 index_before 칸인가
+    const h0 = head();
+    u.begin();
+    CreateUnit(1, "Terran Marine", "Anywhere", P1);
+    u.end();
+    okv = okValue();
+    killSlot = u.index;
+    printAll("\x07[T1] ok={}(1) idx={} 머리 전={} 후={} 종류={}(0) 주인={}(0) 주문={}(0 아님) 고유={}",
+        okv, u.index, h0, head(), wread_epd(u.epd + 25, 0), bread_epd(u.epd + 19, 0),
+        bread_epd(u.epd + 19, 1), bread_epd(u.epd + 41, 1));
+}
+
+function t2() {                                // B-10-3: 터렛 유닛은 본체가 먼저 칸을 가져가는가
+    u.begin();
+    CreateUnit(1, "Terran Goliath", "Anywhere", P1);
+    u.end();
+    okv = okValue();
+    const subIdx = units.index(dwread_epd(u.epd + 28));
+    const se = units.slot(subIdx);
+    printAll("\x07[T2] ok={} idx={} 종류={}(3) 서브유닛 칸={} 서브 종류={}(4) 머리={}",
+        okv, u.index, wread_epd(u.epd + 25, 0), subIdx, wread_epd(se[1] + 25, 0), head());
+}
+
+function t3() {                                // B-10-4: 한 번에 3마리 — 첫 유닛 칸과 머리 이동
+    u.begin();
+    CreateUnit(3, "Terran Marine", "Anywhere", P1);
+    u.end();
+    okv = okValue();
+    printAll("\x07[T3] 3마리 ok={} 첫 칸={} 머리={}(첫 칸+3 이면 연속)", okv, u.index, head());
+}
+
+function t4() {                                // B-10-1: 자리가 없어 생성이 실패하면 ok 가 거짓이고 머리가 그대로인가
+    u.begin();
+    CreateUnit(1, "Terran Command Center", 3, P1);
+    u.end();
+    okv = okValue();
+    ccSlot = u.index;                          // 표식은 F5 에 쓴다 (이번 프레임 new_units(clear=) 가 이 칸을 지우므로)
+    const h0 = head();
+    u.begin();
+    CreateUnit(1, "Terran Command Center", 3, P1);   // 같은 자리 — 겹쳐 지을 수 없다
+    u.end();
+    const ok2 = okValue();
+    printAll("\x07[T4] 첫 CC ok={}(1) 칸={}, 겹친 CC ok={}(0) 머리 전={} 후={}(같아야 함)", okv, ccSlot, ok2, h0, head());
+}
+
+function t6(f) {                               // B-10-6: 죽은 칸의 주문·스프라이트와 빈 칸 목록 머리
+    const e = units.slot(killSlot);
+    printAll("\x07[T6] F{} 칸{} 주문={} HP={} 스프라이트={} 머리={}", f, killSlot,
+        bread_epd(e[1] + 19, 1), dwread_epd(e[1] + 2), dwread_epd(e[1] + 3), head());
+}
+
+function t8() {                                // B-10-6/7: 죽은 뒤 새로 만들면 어느 칸인가, 고유 바이트가 느는가
+    const e = units.slot(killSlot);
+    const before = bread_epd(e[1] + 41, 1);
+    u.begin();
+    CreateUnit(1, "Terran Marine", "Anywhere", P1);
+    u.end();
+    okv = okValue();
+    t8Slot = u.index;
+    printAll("\x07[T8] ok={} 새 칸={} (죽은 칸 {} 이면 앞으로 돌려줌) 죽은 칸 고유 전={} 지금={} 머리={}",
+        okv, u.index, killSlot, before, bread_epd(e[1] + 41, 1), head());
+}
+
+function t9() {                                // B-10-1: 유닛 한도(1700)까지 채운 뒤의 ok
+    fillMade = 0;
+    while (fillMade < 1700) {
+        u.begin();
+        CreateUnit(1, "Terran Marine", "Anywhere", P1);
+        u.end();
+        if (u.failed) { break; }
+        fillMade += 1;
+    }
+    okv = okValue();
+    printAll("\x07[T9] 채움 {}마리, 마지막 ok={}(0) ptr={}(0) idx={}(1700) 머리={}(1700)", fillMade, okv, u.ptr, u.index, head());
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) { t1(); }
+    if (frame == 2) { t2(); }
+    if (frame == 3) { t3(); }
+    if (frame == 4) { t4(); }
+    if (frame == 5) { data.mark[ccSlot] = 7; data2.tag[ccSlot] = 9; }
+    if (frame == 6) { CreateUnit(1, "Terran Marine", 1, P1); }    // B-10-5: 순회 앞에서 만든 유닛 → 이번 프레임
+    if (frame == 8) { KillUnit("Terran Marine", P1); }
+    if (frame >= 8 && frame <= 20) { t6(frame); }
+    if (frame == 24) { t8(); }
+    if (frame == 26) { RemoveUnitAt(1, "Terran Command Center", 3, P1); }   // B-10-6: RemoveUnit 도 주문 0 을 거치는가
+    if (frame == 30) { t9(); }
+    if (frame == 32) { KillUnit("Terran Marine", P1); }
+
+    newCount = 0;
+    foreach (nu : units.new_units(clear=data)) {                 // B-10-5: 새 유닛 순회 (칸 초기화 → 살아 있음 표식)
+        data.alive[nu.index] = 1;
+        newCount += 1;
+        if (newCount <= 3 && frame <= 12) {
+            printAll("[T5] F{} 새 유닛 칸={} 종류={}", frame, nu.index, wread_epd(nu.epd + 25, 0));
+        }
+    }
+    if (frame <= 12 || (frame >= 30 && frame <= 31)) {
+        printAll("\x07[T5] F{} 새 유닛 {}마리", frame, newCount);
+    }
+    if (frame == 6) { CreateUnit(1, "Terran Marine", 1, P1); }    // 순회 뒤에서 만든 유닛 → 다음 프레임(F7)
+
+    foreach (d : units.dying(data, key="alive", limit=40)) {     // B-10-8: 죽는 유닛마다 한 번
+        deadSeen += 1;
+        if (d.index == ccSlot) {
+            ccDeaths += 1;
+            printAll("\x07[T10] F{} CC 칸 {} 죽음 알림 (mark={}(7), 한 번만 나와야 함)", frame, d.index, data.mark[d.index]);
+        } else if (frame <= 40) {
+            printAll("[T7] F{} 죽음 칸={} 종류={}", frame, d.index, wread_epd(d.epd + 25, 0));
+        }
+    }
+    units.clear_on_death(data2);                                 // B-10-8: 죽은 칸의 tag 를 0 으로
+    if (frame == 45) {
+        printAll("\x07[T10] CC 죽음 알림 {}회(1), CC 칸 mark={}(0) tag={}(0), 죽음 알림 합계 {}",
+            ccDeaths, data.mark[ccSlot], data2.tag[ccSlot], deadSeen);
+    }
+    if (frame == 50) {
+        u.begin();
+        CreateUnit(1, "Terran Marine", "Anywhere", P1);
+        u.end();
+        if (u.ok) {
+            units.CUnit(u.epd).removeTimer = 0;
+            printAll("\x07[T11] removeTimer 쓰기 → {}(0), 칸={}, 끝 — 결과를 알려 주세요", wread_epd(u.epd + 68, 0), u.index);
+        }
+    }
+}

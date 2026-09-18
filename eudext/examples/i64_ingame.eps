@@ -1,0 +1,163 @@
+// eudext.i64 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 배치 C 의 C3-* 항목
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/i64_ingame.eds --work <작업 폴더>
+// 혼자(P1) 연다. 첫 사이클에 시험을 한 번 돌리고, 약 10초(120 사이클)마다 [C3-1]~[C3-7] 일곱 줄을 한 줄씩 띄운다.
+// 각 줄의 괄호 안이 기대값이다. 화면 줄을 사진이나 글로 알려 주면 된다.
+//
+// 확인하려는 가정 (DESIGN 3.5-7, S8 3절): SC 의 마스크 없는 Subtract 액션은 **부호 없는 비교로 0 에서 멈춘다**.
+// Int64 의 포화 뺄셈은 hi 반쪽을 이 액션으로 빼고(0 에서 멈추는 것이 정답과 같은 경우), 10진 출력·상수 포화도
+// "앞 조건이 값 ≥ 빼는 값을 보장한 곳"에서 이 액션을 쓴다. 에뮬레이터는 이 가정대로 흉내 낸다.
+import eudext.i64 as i64;
+
+const cell = Db(12);                 // 원시 Subtract 시험 칸 3개
+const res = i64.Int64Array(32);      // 결과 보관 (화면에 다시 띄운다)
+var frame, okCount, total, ti;
+var raw1, raw2, raw3;
+
+function keep(lo, hi, elo, ehi) {    // 결과를 res[ti] 에 두고 기대값과 비교
+    const x = i64.wrap(lo, hi);
+    res[ti] = x;
+    ti += 1;
+    total += 1;
+    if (x == i64.wrap(elo, ehi)) { okCount += 1; }
+}
+
+function keep32(v, e) {
+    keep(v, 0, e, 0);
+}
+
+function tsat(alo, ahi, blo, bhi, elo, ehi) {       // 변수끼리 포화 (인라인)
+    const a = i64.wrap(alo, ahi);
+    a.isub_sat(i64.wrap(blo, bhi), inline=True);
+    keep(a.lo, a.hi, elo, ehi);
+}
+
+function tsatf(alo, ahi, blo, bhi, elo, ehi) {      // 변수끼리 포화 (공유 EUDFunc — 기본)
+    const a = i64.wrap(alo, ahi);
+    a.isub_sat(i64.wrap(blo, bhi));
+    keep(a.lo, a.hi, elo, ehi);
+}
+
+function twrap(alo, ahi, blo, bhi, elo, ehi) {      // 변수끼리 wrap
+    const a = i64.wrap(alo, ahi);
+    a.v -= i64.wrap(blo, bhi);
+    keep(a.lo, a.hi, elo, ehi);
+}
+
+function tadd(alo, ahi, blo, bhi, elo, ehi) {
+    const a = i64.wrap(alo, ahi);
+    a.v += i64.wrap(blo, bhi);
+    keep(a.lo, a.hi, elo, ehi);
+}
+
+function tneg(alo, ahi, elo, ehi) {
+    const a = i64.wrap(alo, ahi);
+    const n = -a;
+    keep(n.lo, n.hi, elo, ehi);
+}
+
+function tcmp(alo, ahi, blo, bhi) {                 // 결과 = (a > b) + 2·(a <s b) + 4·(a != b)
+    const a = i64.wrap(alo, ahi);
+    const b = i64.wrap(blo, bhi);
+    var r = 0;
+    if (a > b) { r += 1; }
+    if (i64.slt(a, b)) { r += 2; }
+    if (a != b) { r += 4; }
+    return r;
+}
+
+function run_tests() {
+    // [C3-1] 원시 SC Subtract (res 0~2)
+    SetMemory(cell, SetTo, 3);
+    SetMemory(cell, Subtract, 5);
+    SetMemory(cell + 4, SetTo, 5);
+    SetMemory(cell + 4, Subtract, 0xFFFFFFFF);
+    SetMemory(cell + 8, SetTo, 0x80000001);
+    SetMemory(cell + 8, Subtract, 2);
+    raw1 = dwread_epd(EPD(cell));
+    raw2 = dwread_epd(EPD(cell) + 1);
+    raw3 = dwread_epd(EPD(cell) + 2);
+    keep32(raw1, 0);
+    keep32(raw2, 0);
+    keep32(raw3, 0x7FFFFFFF);
+
+    // [C3-2] 변수끼리 포화, 인라인 (res 3~8): 2^32−1 빌림 경계, hi 가 작음, hi 같고 빌림, 같은 값, 보통
+    tsat(0, 1, 1, 0, 0xFFFFFFFF, 0);                          // 4294967296 − 1 = 4294967295
+    tsat(5, 0, 0, 1, 0, 0);                                   // 5 − 4294967296 → 0
+    tsat(5, 1, 3, 1, 2, 0);                                   // 4294967301 − 4294967299 = 2
+    tsat(3, 1, 5, 1, 0, 0);                                   // 4294967299 − 4294967301 → 0
+    tsat(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0, 0); // 같은 값 → 0
+    tsat(0xFAF08000, 2, 0xB2D05E00, 0, 0x48202200, 2);         // 12800000000 − 3000000000 = 9800000000
+
+    // [C3-3] 상수 포화 (res 9~12)
+    const k = i64.Int64(0);
+    k.v = 0x100000000;
+    k.isub_sat(1);
+    keep(k.lo, k.hi, 0xFFFFFFFF, 0);
+    k.v = 5;
+    k.isub_sat(0x100000000);
+    keep(k.lo, k.hi, 0, 0);
+    k.v = 0x100000005;
+    k.isub_sat(0x100000003);
+    keep(k.lo, k.hi, 2, 0);
+    k.v = 0x100000003;
+    k.isub_sat(0x100000005);
+    keep(k.lo, k.hi, 0, 0);
+
+    // [C3-4] 공유 함수 포화 (res 13~15)
+    tsatf(0, 1, 1, 0, 0xFFFFFFFF, 0);
+    tsatf(5, 0, 0, 1, 0, 0);
+    tsatf(5, 1, 3, 1, 2, 0);
+
+    // [C3-5] wrap 뺄셈·부호 반전·올림 (res 16~19)
+    twrap(0, 0, 1, 0, 0xFFFFFFFF, 0xFFFFFFFF);               // 0 − 1 = 18446744073709551615
+    twrap(0, 1, 1, 0, 0xFFFFFFFF, 0);                        // 4294967296 − 1 = 4294967295
+    tneg(1, 0, 0xFFFFFFFF, 0xFFFFFFFF);                      // −1
+    tadd(0xFFFFFFFF, 0, 1, 0, 0, 1);                         // 4294967295 + 1 = 4294967296
+
+    // [C3-6] 비교·출력 (res 20~22)
+    keep32(tcmp(0, 3, 0xFFFFFFFF, 2), 5);                    // a > b, a != b
+    keep32(tcmp(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF), 5); // −1 과 −2: 부호 없음·있음 모두 크다 → 1+4
+    keep32(tcmp(0, 0x80000000, 0, 0), 7);                    // −2^63 <s 0, 부호 없음으로는 크다 → 1+2+4
+}
+
+function show(n) {
+    if (n == 0) {
+        printAll("\x07[C3-1] SC Subtract 3−5 = {} (0), 5−0xFFFFFFFF = {} (0), 0x80000001−2 = {} (2147483647)",
+            raw1, raw2, raw3);
+    }
+    if (n == 1) {
+        printAll("\x07[C3-2] 포화(변수·인라인) {} {} {} {} {} {} (4294967295 0 2 0 0 9800000000)",
+            res[3].fmt(), res[4].fmt(), res[5].fmt(), res[6].fmt(), res[7].fmt(), res[8].fmt());
+    }
+    if (n == 2) {
+        printAll("\x07[C3-3] 포화(상수) {} {} {} {} (4294967295 0 2 0)",
+            res[9].fmt(), res[10].fmt(), res[11].fmt(), res[12].fmt());
+    }
+    if (n == 3) {
+        printAll("\x07[C3-4] 포화(공유 함수) {} {} {} (4294967295 0 2)",
+            res[13].fmt(), res[14].fmt(), res[15].fmt());
+    }
+    if (n == 4) {
+        printAll("\x07[C3-5] wrap {} {} 부호 반전 {} 올림 {} (18446744073709551615 4294967295 18446744073709551615 4294967296)",
+            res[16].fmt(), res[17].fmt(), res[18].fmt(), res[19].fmt());
+    }
+    if (n == 5) {
+        printAll("\x07[C3-6] 비교 {} {} {} (5 5 7) 출력 {} {} (18446744073709551615 -1)",
+            res[20].fmt(), res[21].fmt(), res[22].fmt(), res[16].fmt(), i64.fmt(res[18], signed=True));
+    }
+    if (n == 6) {
+        printAll("\x07[C3-7] 점검 {} / {} (23 / 23) — 두 수가 같으면 통과", okCount, total);
+    }
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        run_tests();
+        printAll("\x07[C3] eudext.i64 인게임 점검 — 약 10초마다 [C3-1]~[C3-7] 일곱 줄");
+    }
+    const n = frame % 120;
+    if (n >= 2 && n <= 8) {
+        show(n - 2);
+    }
+}

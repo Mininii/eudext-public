@@ -1,0 +1,43 @@
+// eudext.bullet 예제 (epScript)
+// - 모듈 함수는 번역에서 f_ 가 붙는다: bullet.bullet(…) → bullet.f_bullet(…)
+//   (bullet.f_bullet(…) 이라고 쓰면 f_f_bullet 이 되어 안내 오류가 난다)
+// - BulletKind·BulletDat 은 대문자라 그대로. 객체는 var 가 아니라 const 로 묶는다
+// - 파이썬 리스트는 list(a, b, c) (리터럴 [a, b] 는 EUDArray 가 된다)
+import eudext.bullet as bullet;
+
+// UE_RE 208번 탄막 유닛 (무기 127 → flingy 106, 그림 344). dat 묶음은 시작 1회 목록으로
+const kind = bullet.BulletKind(unit=208, weapon=127, flingy=106, dat=bullet.BulletDat(sprite=344));
+// 204 로 만들고 종류만 210 으로 바꾸는 종류 (M2 칸 패치, Y +10)
+const shell = bullet.BulletKind(unit=210, weapon=128, flingy=158, shell=204, recipe="m2", y_offset=10,
+    dat=bullet.BulletDat(splash=list(8, 8, 8), remove_after=64, top_speed=2560));
+kind.install();
+shell.install();
+bullet.setup(loc="Location 0");          // 총알 로케이션 (기준 맵 26번) — 다른 용도로 쓰지 않는다
+
+var frame, made, failed, lastFacing, lastTo, speedNow, angle;
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        DoActions(kind.speed_actions(500));      // 전역 dat: 같은 프레임 같은 flingy 는 마지막 값을 쓴다
+        DoActions(kind.time_actions(32));
+        DoActions(kind.height_actions(20));
+    }
+    // 8방향 원형 탄 (facing 은 유닛 방향 — 탄은 facing + 128 쪽으로 난다)
+    angle = 0;
+    while (angle < 256) {
+        const e = bullet.bullet(kind, P8, 2048, 2048, angle);
+        if (e == 0) { failed += 1; } else { made += 1; }
+        angle += 32;
+    }
+    // 진행 방향을 주고 싶으면 heading_to_facing
+    const f = bullet.heading_to_facing(kind, frame * 8);
+    const e2 = bullet.bullet_at(kind, P8, "CLoc", f);
+    if (e2 != 0) { lastFacing = bread_epd(e2 + 8, 1); }
+    // 목표 쪽으로 (1프레임, CtrigAsm f_Atan2 와 같은 방향). 좌표가 모두 상수면 방향을 컴파일 시점에 구한다
+    const e3 = bullet.bullet_to(shell, P7, 1000 + frame * 100, 1000, 2048, 2048, height=12);
+    if (e3 != 0) { lastTo = bread_epd(e3 + 8, 1); }
+    // 변수 속도
+    speedNow = 400 + frame;
+    kind.set_speed(speedNow);
+}

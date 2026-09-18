@@ -1,0 +1,145 @@
+// auto_all phase 16 `display` (프레임 2800~3250, 정리 3255) + 19 `assist`(E6-2)·20 `visual`(E6-7·E6-6) 쪽 함수
+// examples/display_ingame.eps 에서 옮기고 계측했다 (E6-8·3·4·4b·5·9·10 / 19: E6-2 / 20: E6-7·E6-6).
+// 바뀐 점: 0쪽(E6-1 관전자)은 멀티 세션(25 맵)에 남겨 두고 빼고, 5·8쪽(E6-7·E6-6)은 visual 구간으로 옮겼다.
+//          **2026-09-18 인게임: 1·2·3쪽(E6-3 13번째 줄, E6-4·4b TBL 쓰기)에서 게임이 EUD ERROR(0xFF9BE98B)로 멈췄다**
+//          (마지막 프레임 2800 → 2801 = 1쪽 `show_line13` 직후). 그 세 쪽과 자체 점검의 두 항목(13번째 줄·TBL)은
+//          통합 맵에서 **뺐다** — 25_display_check(계측판)와 25b_display_bisect(좁히기)에서만 돈다.
+//          그래서 자체 점검은 7 → 5 항목이고, 이 단계는 마린을 만들지 않으며 TBL 을 쓰지 않는다.
+//          E6-10(every=24 + pin)은 **매 프레임** 부른다(원래 맵은 쪽이 바뀔 때 한 번만 불러 효과를 볼 수 없었다).
+//          고정 줄(E6-2)은 사람이 채팅을 치는 assist 구간에서만 띄운다(chat 단계 판정을 흔들지 않게).
+import eudext.display as dp;
+import eudext.numfmt as nf;
+import eudext.players as pl;
+import eudext.dbg as dbg;
+import aa_common as aa;
+
+var frame, okCount, total, lastBad;
+var page, pinBad, slotFirst, slotChg, e610Changes, e610Calls;
+var v42 = 42;
+var vneg = 0xFFFFFFF6;        // −10
+var big = 12345678;
+const tmpl = dp.Template("\x07[E6-6] \x04임무 목표 카운터 \x1F", frame);
+const tchk = dp.Template("T:", vneg, "|", nf.Dec(v42, width=4, fill="0"));
+const prev = Db(224);         // E6-10 버퍼 사본 (바뀐 횟수 셈 — 숫자 자리가 64바이트 뒤라 넉넉히)
+
+function chk(ptr, exp) {
+    total += 1;
+    if (strcmp(ptr, exp) == 0) { okCount += 1; } else { lastBad = total; }
+}
+
+function self_check() {
+    tchk.update();
+    chk(tchk.addr, Db("T:\r\r\r\r\r\r\r\r\r\r\r-10|\r\r\r0042\r\r\r\r\r\r\r\r"));
+    // 13번째 줄(show_line13)·TBL(set_tbl) 자체 점검은 25 맵 쪽으로 옮겼다 (2026-09-18 인게임 EUD ERROR)
+    const s1 = dp.show(dp.LOCAL, "S:", nf.Man(big), dp.Byte(0x41), "|", nf.dp.dec16(vneg));
+    chk(s1.addr, Db("S:\r\r\r\r\r1234\r만\r5678\r\r\r\rA|\r\r\r\r\r\r\r-\r\r\r\r\r\r\r\r10"));
+    const s2 = dp.show(dp.LOCAL, dp.Pick(page, list("zero", "one"), missing="?"), "!");
+    chk(s2.addr, Db("zero!"));
+    const s3 = dp.show(dp.LOCAL, dp.Bytes(v42, 0x43));
+    chk(s3.addr, Db("*C\r\r"));
+    const s4 = dp.show(dp.LOCAL, nf.Per(big));
+    chk(s4.addr, Db("\r\r\r12345.678"));
+    dbg.result("display.E6-8.all", okCount, total, suite="display");
+    dbg.mark("display.E6-8.lastbad", lastBad, suite="display");
+    dbg.check("display.E6-8.ok", lastBad == 0, suite="display");
+    printAll("\x07[E6-8] \x04자체 점검 {} / {} (5 / 5, 틀린 번호 {} 는 0)", okCount, total, lastBad);
+}
+
+// page1(E6-3 13번째 줄)·page2(E6-4 TBL)·page3(E6-4b TBL)은 2026-09-18 인게임 EUD ERROR 때문에 여기서 뺐다.
+// 25_display_check(계측판, 쪽 1~3)와 25b_display_bisect(단계별 좁히기)에서만 돈다.
+
+function page4() {                               // E6-5: 이름 네 개
+    const s = dp.show(dp.LOCAL, "\x07[E6-5] \x04이름 네 개가 같아야: ", dp.PName(0), "\x04 / ", nf.dp.name20(0), "\x04 / ",
+            dp.PName(0, cache=true), "\x04 / ", dp.LocalName());
+    dp.show(dp.LOCAL, "\x07[E6-5] \x04(0x57EEEB 실시간 / 0x6D0FDC DPL 표 / 시작 때 담은 것 / 이 PC 이름) 클랜 태그·한글 이름이면 더 좋습니다");
+    const same = aa.name_eq(0x57EEEB, 0x6D0FDC, 16);
+    dbg.snapshot_text("display.E6-5.line", s.addr, 64, every=0, suite="display");
+    dbg.capture("display.E6-5.line");
+    dbg.mark("display.E6-5.same", same, suite="display");
+    dbg.check("display.E6-5.same", same == 1, suite="display");
+}
+
+function page6() {                               // E6-9: 긴 줄
+    const s = dp.show(dp.LOCAL, "\x07[E6-9] \x04긴 줄 ", v42, v42, v42, v42, v42, v42, v42, v42, v42, v42, v42, v42, v42,
+            v42, v42, v42, "\x1F 끝(이 글자가 보이는지)");
+    const n = strlen(s.addr);
+    dbg.snapshot_text("display.E6-9.line", s.addr, 72, every=0, suite="display");
+    dbg.capture("display.E6-9.line");
+    dbg.mark("display.E6-9.len", n, suite="display");
+    printAll("\x07[E6-9] \x04틀 길이 {} 바이트 (218 을 넘으면 SC 가 자르는지 봐 주세요)", n);
+}
+
+function e610() {                              // E6-10: every=24 + pin — 매 프레임 부른다
+    const n0 = dwread(0x640B58);
+    const s = dp.show(dp.LOCAL, "\x07[E6-10] \x04every=24: 이 숫자는 약 2초마다 바뀝니다 → \x1F", frame, every=24, pin=true);
+    const n1 = dwread(0x640B58);
+    e610Calls += 1;
+    if (n1 != n0) { pinBad += 1; }
+    if (e610Calls == 1) { slotFirst = n0; }
+    else if (n0 != slotFirst) { slotChg += 1; }
+    if (memcmp(s.addr, prev, 160) != 0) {
+        e610Changes += 1;
+        memcpy(prev, s.addr, 160);
+    }
+}
+
+function e610_report() {
+    dbg.mark("display.E6-10.calls", e610Calls, suite="display");
+    dbg.mark("display.E6-10.changes", e610Changes, suite="display");
+    dbg.mark("display.E6-10.pinbad", pinBad, suite="display");
+    dbg.mark("display.E6-10.slotchg", slotChg, suite="display");
+    dbg.check("display.E6-10.pin", pinBad == 0 && slotChg == 0 ? 1 : 0, suite="display");
+    printAll("\x07[E6-10] \x04호출 {}회에 버퍼 {}번 바뀜(24 프레임마다 1), 같은 줄 유지 {} (0 이면 제자리)", e610Calls,
+        e610Changes, pinBad + slotChg);
+}
+
+function page5() {                               // visual 구간: E6-7 (0x0D 폭)
+    dp.show(dp.LOCAL, "\x07[E6-7] \x04|", nf.dp.dec16(vneg), "\x04|", nf.dp.man18(big, color=true), "\x04|",
+            nf.dp.per8(12500), "\x04|", nf.dp.dig2(v42), "\x04|", v42, "\x04|");
+    dp.show(dp.LOCAL, "\x07[E6-7] \x04기대: |-10|1234만5678(색)|12.5|42|42| — 0x0D 채움이 옛 맵처럼 폭을 차지하지 않아야");
+}
+
+function page8() {                               // visual 구간: E6-6 (임무 목표)
+    dp.show(dp.LOCAL, "\x07[E6-6] \x04임무 목표 창을 연 채로 카운터가 바뀌는지 보세요 (창을 다시 열 때만 바뀌는지)");
+}
+
+function objectives() {                          // 임무 목표 틀을 다시 걸고 매 프레임 갱신 (E6-6)
+    tmpl.update();
+    DoActions(SetMissionObjectives(tmpl.string));
+}
+
+function pinned(p) {                             // E6-2: 고정 줄 두 개 (assist 구간)
+    const n0 = dwread(0x640B58);
+    dp.begin_pinned();
+    dp.show(dp.LOCAL, "\x07[E6-2] \x04고정 줄 1 — 프레임 \x1F", frame);
+    dp.show(dp.LOCAL, "\x07[E6-2] \x04고정 줄 2 — 쪽 \x1F", p, "\x04 / 8 (채팅을 쳐도 두 줄이 제자리)");
+    dp.end_pinned();
+    const n1 = dwread(0x640B58);
+    if (n1 != n0) { pinBad += 1; }
+}
+
+function step(f) {                               // phase 16: df = f − 2799
+    const df = f - 2799;
+    frame = df;
+    if (df == 1) {
+        setcurpl(0);
+        self_check();
+        objectives();
+        printAll("\x07[E6] eudext.display 확인 — 6초마다 한 쪽씩 (E6-5·9·10. 13번째 줄·TBL 은 25 맵)");
+    }
+    tmpl.update();
+    if (df == 2) { page = 4; page4(); }
+    if (df == 74) { page = 6; page6(); }
+    if (df == 146) { page = 7; }
+    if (df >= 146 && df <= 218) { e610(); }
+    if (df == 219) { e610_report(); }
+}
+
+function cleanup() {                             // 정리(3255): 임무 목표 되돌림 (이 단계는 유닛·TBL 을 건드리지 않는다)
+    RemoveUnit("Terran Marine", P1);
+    DoActions(SetMissionObjectives(" "));
+}
+
+function clean_check() {
+    dbg.check("aa.clean.display", Command(P1, Exactly, 0, "Terran Marine"));
+}

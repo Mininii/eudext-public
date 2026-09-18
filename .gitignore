@@ -1,0 +1,11 @@
+# 파이썬·epScript 산출물
+__pycache__/
+*.pyc
+__epspy__/
+
+# 빌드 산출물
+*_out.scx
+eudext/docs/spec/S8_ingame/build/
+work/
+.venv/
+.tools/

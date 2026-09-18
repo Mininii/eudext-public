@@ -1,0 +1,479 @@
+// auto_all phase 15 `bullet` (프레임 1950~2740, 정리 2745) — examples/bullet_ingame.eps 에서 옮기고 계측했다
+// (D14-1·2·4·5·6·7·8·9·13). bf = 이 단계 안 프레임 1부터.
+// 바뀐 점: d3(유닛 칸 1700 채우기)와 "출발 = 목표" 한 발은 뺐다 → 27_X_limit 맵(xlimit_ingame.eps).
+//          D14-4(같은 프레임 같은 flingy 두 속도)·D14-9(height_actions)를 더했다(원래 맵에 없던 항목).
+//          방향 판정은 만든 탄막 유닛의 facing 과 **표적 죽음**으로 한다(총알 표 오프셋은 미확인 — 진행 방향 계산은 눈).
+import eudext.bullet as bullet;
+import eudext.units as units;
+import eudext.mathx as mx;
+import eudext.datpatch as dat;
+import eudext.dbg as dbg;
+
+// 탄 그림: flingy 106 -> sprite 344 -> image 360 (원판에서 아무도 안 쓰는 사슬). iscript 395 가 아니면
+// 탄이 만들어져도 날아가지 않는다 (2026-09-18 인게임). image_draw 10 은 UE_RE 와 같은 값.
+const kA = bullet.BulletKind(unit=208, weapon=127, flingy=106,
+    dat=bullet.BulletDat(sprite=344, image=360, image_iscript=395, image_draw=10));
+const kB = bullet.BulletKind(unit=210, weapon=128, flingy=158, shell=204,
+    dat=bullet.BulletDat(damage=65535, splash=list(8, 8, 8), remove_after=64, top_speed=2560, idle_order=23,
+                         attack_order=23, base_property=0x20000004, attack_angle=0));
+const kB0 = bullet.BulletKind(unit=210, weapon=128, flingy=158);
+const kY = bullet.BulletKind(unit=208, weapon=127, flingy=106, y_offset=10);
+const k6a = bullet.BulletKind(unit=208, weapon=127, flingy=106, remove_timer=240);
+const k6b = bullet.BulletKind(unit=208, weapon=127, flingy=106, recipe="minimal", remove_timer=240);
+const k7 = bullet.BulletKind(unit=208, weapon=127, flingy=106, recipe="minimal");
+const k9 = bullet.BulletKind(unit=208, weapon=127, flingy=106, remove_timer=240);
+kA.install();
+kB.install();
+dat.unit(204).set(groundWeapon=127);
+bullet.setup(loc="Location 0");
+
+const tA = units.Capture();
+const dx200 = EUDArray(list(0, 141, 200, 141, 0, -141, -200, -141));
+const dy200 = EUDArray(list(-200, -141, 0, 141, 200, 141, 0, -141));
+const dx300 = EUDArray(list(0, 212, 300, 212, 0, -212, -300, -212));
+const dy300 = EUDArray(list(-300, -212, 0, 212, 300, 212, 0, -212));
+const d1face = EUDArray(8);
+const d1dead = EUDArray(8);
+const d2face = EUDArray(8);
+const d2dead = EUDArray(8);
+const d6pos = EUDArray(10);
+const SEL_TABLE = 0x6284B8;      // 로컬 선택 유닛 표 (12 dword)
+// units.dat 칸 주소(번호 208 이 이미 들어 있다 — dat.addr("units", 필드, 208) 값). 2026-09-18 인게임에서 탄이 하나도
+// 안 만들어졌을 때 무엇이 빠졌는지 보려고 그대로 읽는다.
+const U208_PROP = 0x6643C0;      // baseProperty[208]  (Building 이 켜져 있으면 배치 검사에 걸린다)
+const U208_ELEV = 0x663220;      // elevation[208]
+const U208_BLT = 0x661E48;       // unitBoundsLT[208]
+const U208_BRB = 0x661E4C;       // unitBoundsRB[208]
+const U208_BDIM = 0x662BA0;      // buildingDimensions[208] = 배치 상자
+// 2026-09-18 2차: "스크립트(그래픽) 설정" 확인 — UE_RE EUDEditorDat.lua 가 쓰는 값과 같은지 되읽는다.
+const U208_FLINGY = 0x6645C8;    // units:Graphic(flingy)[208]  — UE_RE 는 88 (벌처 flingy). 원래값 176
+const FL106_SPRITE = 0x6CA3EC;   // flingy:Sprite[106]          — UE_RE 는 344. 원래값 249
+const W127_FLINGY = 0x656EA4;    // weapons:Graphic(flingy)[127] — UE_RE 는 106. 원래값 142
+const FLINGY_106 = 0x6CA0A0;     // flingy.dat 최고속도 칸 (dat.addr("flingy", "topSpeed", 106))
+const SPEED_ORIG = 0xFFFFE0BF;   // −8001 (UE_RE 관례: 음수 = 반대 방향)
+
+var frame, target, target2, shots, facingBad, hits, shellType, e7, e7b, e6count;
+var hits2, facingBad2, gNear, gFar, wantNear, nearDead, farDead;
+var e6a, e6b, e6c, e6d, e6e, d4a, d4b, d9e, selCount;
+
+function placeTarget(x, y) {
+    setloc(27, x, y);
+    tA.begin();
+    CreateUnit(1, "Terran Marine", 27, P2);
+    tA.end();
+    if (tA.ok) { return tA.epd; }
+    return 0;
+}
+
+function isDead(epd) {
+    if (epd == 0) { return 1; }
+    if (bread_epd(epd + 19, 1) == 0) { return 1; }
+    if (dwread_epd(epd + 3) == 0) { return 1; }
+    return 0;
+}
+
+function checkFacing(e, want) {
+    if (e == 0) {
+        facingBad += 1;
+        return 999;
+    }
+    shots += 1;
+    const got = bread_epd(e + 8, 1);
+    if (got != want) { facingBad += 1; }
+    return got;
+}
+
+// 2026-09-18 3차: 208 을 게임이 아예 안 만들어 준다(ctl208 = 0, 마린·레이스는 1). dat 는 UE_RE 와 같은 값이다.
+// 남은 차이를 맵 안에서 한 칸씩 바꿔 가며 어느 값이 막는지 가린다(한 번 시도 = 만들기 + 지우기).
+function try208() {
+    tA.begin();
+    CreateUnit(1, 208, 27, P1);
+    tA.end();
+    var r = 0;
+    if (tA.ok) { r = 1; }
+    RemoveUnit(208, P1);
+    return r;
+}
+
+function d0() {                                  // D14-0: 왜 못 만들었나 (2026-09-18 인게임에서 19발 전부 실패)
+    const head0 = dwread(0x628438);
+    const prop = dwread(U208_PROP);
+    const elev = bread(U208_ELEV);
+    const bLT = dwread(U208_BLT);
+    const bRB = dwread(U208_BRB);
+    const bdim = dwread(U208_BDIM);
+    setloc(27, 400, 700);                        // 대조: 같은 자리에 평범한 마린 — 자리·빈 칸 문제인지 종류 문제인지
+    tA.begin();
+    CreateUnit(1, "Terran Marine", 27, P1);
+    tA.end();
+    var ctl = 0;
+    if (tA.ok) { ctl = 1; }
+    RemoveUnit("Terran Marine", P1);
+    // 대조 2 (2026-09-18 뒤): 평범한 **공중** 유닛도 같은 자리에 못 만드는가 — 공중 쪽 자원(반발 칸)이 동난 것인지,
+    // 문 유닛(208) 종류 문제인지 가른다. 앞 단계(plot)가 공중 유닛 수백 기를 만들고 지운 직후다.
+    tA.begin();
+    CreateUnit(1, "Terran Wraith", 27, P1);
+    tA.end();
+    var ctlAir = 0;
+    if (tA.ok) { ctlAir = 1; }
+    RemoveUnit("Terran Wraith", P1);
+    // 대조 3: 탄막 유닛(208) 을 **평범한 CreateUnit 으로** 같은 자리에 만들어 본다 — eudext 탄막 본문(로케이션·CP 처리)의
+    // 문제인지, 유닛 208 을 게임이 아예 안 만들어 주는 것인지 가른다. dat 는 이미 UE_RE 와 같은 값이 들어가 있다.
+    tA.begin();
+    CreateUnit(1, 208, 27, P1);
+    tA.end();
+    var ctl208 = 0;
+    if (tA.ok) { ctl208 = 1; }
+    RemoveUnit(208, P1);
+    const e = bullet.bullet(kA, P1, 400, 700, 0);
+    dbg.mark("bullet.D14-0.head", head0, suite="bullet");
+    dbg.mark("bullet.D14-0.prop", prop, suite="bullet");
+    dbg.mark("bullet.D14-0.elev", elev, suite="bullet");
+    dbg.mark("bullet.D14-0.bLT", bLT, suite="bullet");
+    dbg.mark("bullet.D14-0.bRB", bRB, suite="bullet");
+    dbg.mark("bullet.D14-0.bdim", bdim, suite="bullet");
+    dbg.mark("bullet.D14-0.ctl", ctl, suite="bullet");
+    dbg.mark("bullet.D14-0.ctlair", ctlAir, suite="bullet");
+    dbg.mark("bullet.D14-0.ctl208", ctl208, suite="bullet");
+    // 배치 상자·충돌 상자·고도·Flyer 를 한 칸씩 바꿔 가며 다시 만들어 본다 (b1 = 지금 상태 = ctl208)
+    const b1 = try208();
+    DoActions(SetMemory(U208_BDIM, SetTo, 1));                       // 배치 상자 가로1 세로0 (UE_RE 와 같은 값)
+    const b2 = try208();
+    DoActions(SetMemory(U208_BDIM, SetTo, 0));                       // 배치 상자 0,0
+    const b3 = try208();
+    DoActions(SetMemory(U208_BLT, SetTo, 786444), SetMemory(U208_BRB, SetTo, 786444));   // 충돌 상자 12,12 (0xC000C)
+    const b4 = try208();
+    DoActions(SetMemory(U208_BLT, SetTo, 0), SetMemory(U208_BRB, SetTo, 0));             // 충돌 상자 0,0
+    const b5 = try208();
+    DoActions(SetMemoryX(U208_ELEV, SetTo, 4, 255));                 // 고도 4 (원래값)
+    const b6 = try208();
+    DoActions(SetMemoryX(U208_ELEV, SetTo, 20, 255), SetMemoryX(U208_PROP, SetTo, 0, 4));  // 고도 되돌리고 Flyer 끄기
+    const b7 = try208();
+    // 되돌리기: Flyer 켜고 상자들을 다시 1,1 로
+    DoActions(SetMemoryX(U208_PROP, SetTo, 4, 4), SetMemory(U208_BDIM, SetTo, 65537),
+              SetMemory(U208_BLT, SetTo, 65537), SetMemory(U208_BRB, SetTo, 65537));
+    dbg.mark("bullet.D14-0.b1", b1, suite="bullet");
+    dbg.mark("bullet.D14-0.b2", b2, suite="bullet");
+    dbg.mark("bullet.D14-0.b3", b3, suite="bullet");
+    dbg.mark("bullet.D14-0.b4", b4, suite="bullet");
+    dbg.mark("bullet.D14-0.b5", b5, suite="bullet");
+    dbg.mark("bullet.D14-0.b6", b6, suite="bullet");
+    dbg.mark("bullet.D14-0.b7", b7, suite="bullet");
+    // 스타에디터 쪽 플래그·생산 가능 표: 마린(0)의 값과 견주고, 208 에 마린 값을 넣어 다시 만들어 본다
+    const se0 = wread(0x661518);      // units:StarEdit 플래그[0] (마린)
+    const se208 = wread(0x6616B8);    // units:StarEdit 플래그[208]
+    const gf0 = bread(0x6637A0);      // units:StarEdit 그룹 플래그[0]
+    const gf208 = bread(0x663870);    // units:StarEdit 그룹 플래그[208]
+    const av0 = bread(0x57F27C);      // 생산 가능[P1][0]
+    const av208 = bread(0x57F34C);    // 생산 가능[P1][208]
+    wwrite(0x6616B8, se0);
+    const b8 = try208();
+    bwrite(0x663870, gf0);
+    const b9 = try208();
+    bwrite(0x57F34C, 1);
+    const b10 = try208();
+    wwrite(0x6616B8, se208);          // 되돌리기
+    bwrite(0x663870, gf208);
+    bwrite(0x57F34C, av208);
+    dbg.mark("bullet.D14-0.b8", b8, suite="bullet");
+    dbg.mark("bullet.D14-0.b9", b9, suite="bullet");
+    dbg.mark("bullet.D14-0.b10", b10, suite="bullet");
+    dbg.mark("bullet.D14-0.se208", se208, suite="bullet");
+    dbg.mark("bullet.D14-0.se0", se0, suite="bullet");
+    dbg.mark("bullet.D14-0.gf208", gf208, suite="bullet");
+    dbg.mark("bullet.D14-0.gf0", gf0, suite="bullet");
+    dbg.mark("bullet.D14-0.av208", av208, suite="bullet");
+    dbg.mark("bullet.D14-0.av0", av0, suite="bullet");
+    printAll("\x07[D14-0c] 스타에디터 플래그: 208={} 마린={} / 그룹 208={} 마린={} / 생산가능 208={} 마린={}",
+        se208, se0, gf208, gf0, av208, av0);
+    printAll("\x07[D14-0c] 마린 값으로 바꿔 만들기: 에디터플래그={} 그룹플래그={} 생산가능1={} (1 이면 만들어짐)", b8, b9, b10);
+    printAll("\x07[D14-0b] 208 만들기 시도: 지금={} 배치1x0={} 배치0={} 충돌12={} 충돌0={} 고도4={} Flyer끔={} (1 이면 만들어짐)",
+        b1, b2, b3, b4, b5, b6, b7);
+    dbg.mark("bullet.D14-0.fl208", bread(U208_FLINGY), suite="bullet");
+    dbg.mark("bullet.D14-0.spr106", wread(FL106_SPRITE), suite="bullet");
+    dbg.mark("bullet.D14-0.wg127", bread(W127_FLINGY), suite="bullet");
+    dbg.mark("bullet.D14-0.first", e, suite="bullet");
+    dbg.mark("bullet.D14-0.head2", dwread(0x628438), suite="bullet");
+    dbg.check("bullet.D14-0.made", e != 0, suite="bullet");
+    printAll("\x07[D14-0] 208 dat: prop={} elev={}(20) 크기={}/{} 배치상자={}(0x10001) / 대조 마린={}(1) 레이스={}(1) 208직접={} / 208flingy={}(88) 106sprite={}(344) 127flingy={}(106) / 첫 탄 epd={}",
+        prop, elev, bLT, bRB, bdim, ctl, ctlAir, ctl208,
+        bread(U208_FLINGY), wread(FL106_SPRITE), bread(W127_FLINGY), e);
+}
+
+function d1(i) {                                 // D14-1: facing + 128 쪽으로 날아가는가 (8방향)
+    const h = i * 32;
+    const sx = 400 + 450 * i;
+    target = placeTarget(sx + dx200[i], 700 + dy200[i]);
+    const f = bullet.heading_to_facing(kA, h);
+    const e = bullet.bullet(kA, P1, sx, 700, f);
+    const got = checkFacing(e, f);
+    d1face[i] = got;
+    dbg.check("bullet.D14-1.facing", got == f, suite="bullet");
+    printAll("[D14-1] 진행 {} 로 쏨 (출발 {},700): facing={}({}) epd={} — 탄이 표적 마린(진행 쪽 200) 쪽으로 가야 함",
+        h, sx, got, f, e);
+}
+
+function d1check(i) {
+    const dead = isDead(target);
+    hits += dead;
+    d1dead[i] = dead;
+    dbg.check("bullet.D14-1.dead", dead == 1, suite="bullet");
+    printAll("[D14-1] 진행 {} 표적 죽음={} (1 이면 명중. 0 이면 탄이 간 쪽을 알려 주세요)", i * 32, dead);
+}
+
+function d2(i) {                                 // D14-2: bullet_to 가 목표를 지나가는가
+    const tx = 400 + 450 * i;
+    target = placeTarget(tx, 1600);
+    const sx = tx - dx300[i];
+    const sy = 1600 - dy300[i];
+    const e = bullet.bullet_to(kA, P1, sx, sy, tx, 1600);
+    const want = mx.to_dir256(mx.atan2(sy - 1600, sx - tx));
+    const got = checkFacing(e, want);
+    d2face[i] = got;
+    if (got != want) { facingBad2 += 1; }
+    dbg.check("bullet.D14-2.facing", got == want, suite="bullet");
+    printAll("[D14-2] 진행 {} 쪽 목표 (출발 {},{} → 표적 {},1600): facing={}({}) — 탄이 표적을 지나가야 함",
+        i * 32, sx, sy, tx, got, want);
+}
+
+function d2check(i) {
+    const dead = isDead(target);
+    hits2 += dead;
+    d2dead[i] = dead;
+    dbg.check("bullet.D14-2.dead", dead == 1, suite="bullet");
+    printAll("[D14-2] 진행 {} 표적 죽음={} (1 이면 명중)", i * 32, dead);
+}
+
+function d2b() {                                 // D14-2: 가까운 목표·먼 목표 (출발 = 목표 한 발은 X_limit 맵)
+    target = placeTarget(1000, 2400);
+    const eNear = bullet.bullet_to(kA, P1, 1001, 2402, 1000, 2400);
+    wantNear = mx.to_dir256(mx.atan2(2, 1));
+    gNear = checkFacing(eNear, wantNear);
+    target2 = placeTarget(3600, 2400);
+    const eFar = bullet.bullet_to(kA, P1, 1600, 2400, 3600, 2400);
+    gFar = checkFacing(eFar, 192);
+    printAll("\x07[D14-2] 가까운 목표(1,2 픽셀) facing={}({}), 먼 목표(2000 동쪽) facing={}(192)", gNear, wantNear, gFar);
+    dbg.mark("bullet.D14-2.near_facing", gNear, suite="bullet");
+    dbg.mark("bullet.D14-2.near_want", wantNear, suite="bullet");
+    dbg.mark("bullet.D14-2.far_facing", gFar, suite="bullet");
+    dbg.check("bullet.D14-2.near", gNear == wantNear, suite="bullet");
+    dbg.check("bullet.D14-2.far", gFar == 192, suite="bullet");
+}
+
+function d2bcheck() {
+    nearDead = isDead(target);
+    farDead = isDead(target2);
+    printAll("[D14-2] 가까운 표적 죽음={} 먼 표적(2000) 죽음={} (먼 표적은 사거리·수명에 따라 0 일 수 있음)", nearDead, farDead);
+    dbg.mark("bullet.D14-2.near_dead", nearDead, suite="bullet");
+    dbg.mark("bullet.D14-2.far_dead", farDead, suite="bullet");
+    dbg.check("bullet.D14-2.near_hit", nearDead == 1, suite="bullet");
+}
+
+function d5() {                                  // D14-5: 만든 자리 = 로케이션 좌표 (+ y_offset)
+    const a = bullet.bullet(kA, P1, 1000, 3400, 128);
+    const b = bullet.bullet(kY, P1, 1200, 3400, 128);
+    const ax = wread_epd(a + 10, 0);
+    const ay = wread_epd(a + 10, 2);
+    const bx = wread_epd(b + 10, 0);
+    const by = wread_epd(b + 10, 2);
+    printAll("[D14-5] 만든 위치 y_offset 0: ({},{}) 기대 (1000,3400) / +10: ({},{}) 기대 (1200,3410)", ax, ay, bx, by);
+    dbg.mark("bullet.D14-5.ax", ax, suite="bullet");
+    dbg.mark("bullet.D14-5.ay", ay, suite="bullet");
+    dbg.mark("bullet.D14-5.bx", bx, suite="bullet");
+    dbg.mark("bullet.D14-5.by", by, suite="bullet");
+    dbg.check("bullet.D14-5.pos", ax == 1000 && ay == 3400 && bx == 1200 && by == 3410 ? 1 : 0, suite="bullet");
+}
+
+function d6() {                                  // D14-6: ue_re 가 쓰는 의도 모르는 칸 (+0xA3·+0xDC·+0xE4)
+    e6a = bullet.bullet(k6a, P1, 600, 3000, 0);
+    e6b = bullet.bullet(k6b, P1, 1100, 3000, 0);
+    e6c = bullet.bullet(k6b, P1, 1600, 3000, 0);
+    e6d = bullet.bullet(k6b, P1, 2100, 3000, 0);
+    e6e = bullet.bullet(k6b, P1, 2600, 3000, 0);
+    const bA3 = bread_epd(e6b + 40, 3);
+    const bDC = dwread_epd(e6b + 55);
+    const bE4 = dwread_epd(e6b + 57);
+    const aA3 = bread_epd(e6a + 40, 3);
+    const aDC = dwread_epd(e6a + 55);
+    const aE4 = dwread_epd(e6a + 57);
+    printAll("[D14-6] 만든 직후(②) +0xA3={} +0xDC={} +0xE4={} / ue_re 뒤(①) +0xA3={} +0xDC={} +0xE4={}",
+        bA3, bDC, bE4, aA3, aDC, aE4);
+    dbg.mark("bullet.D14-6.b_a3", bA3, suite="bullet");
+    dbg.mark("bullet.D14-6.b_dc", bDC, suite="bullet");
+    dbg.mark("bullet.D14-6.b_e4", bE4, suite="bullet");
+    dbg.mark("bullet.D14-6.a_a3", aA3, suite="bullet");
+    dbg.mark("bullet.D14-6.a_dc", aDC, suite="bullet");
+    dbg.mark("bullet.D14-6.a_e4", aE4, suite="bullet");
+    dbg.check("bullet.D14-6.ue_re", aA3 == 0 && aE4 == 0 && (aDC & 0x300104) == 0x200104 ? 1 : 0, suite="bullet");
+    if (e6c != 0) { bwrite_epd(e6c + 40, 3, 0); }
+    if (e6d != 0) { maskwrite_epd(e6d + 55, 0x200104, 0x300104); }
+    if (e6e != 0) { dwwrite_epd(e6e + 57, 0); }
+    if (e6a != 0 && e6b != 0 && e6c != 0 && e6d != 0 && e6e != 0) { e6count = 5; }
+    dbg.mark("bullet.D14-6.count", e6count, suite="bullet");
+    printAll("\x07[D14-6] y=3000 에 탄막 유닛 5개(10초 삶) 왼쪽부터 ①모두 ②없음 ③A3만 ④DC만 ⑤E4만 — 10초 안에 하나씩 클릭하고 한 번 드래그해 주세요");
+}
+
+function d6check() {                             // 10초 뒤: 위치 변화(밀림)와 로컬 선택 표
+    d6pos[0] = wread_epd(e6a + 10, 0);
+    d6pos[1] = wread_epd(e6a + 10, 2);
+    d6pos[2] = wread_epd(e6b + 10, 0);
+    d6pos[3] = wread_epd(e6b + 10, 2);
+    d6pos[4] = wread_epd(e6c + 10, 0);
+    d6pos[5] = wread_epd(e6d + 10, 0);
+    d6pos[6] = wread_epd(e6e + 10, 0);
+    d6pos[7] = 0x58A364 + 4 * e6a;               // 유닛 포인터 (선택 표와 맞대 볼 값)
+    d6pos[8] = 0x58A364 + 4 * e6b;
+    d6pos[9] = 0x58A364 + 4 * e6c;
+    selCount = 0;
+    for (var i = 0; i < 12; i++) {
+        if (dwread(SEL_TABLE + 4 * i) != 0) { selCount += 1; }
+    }
+    dbg.capture("bullet.D14-6.pos");
+    dbg.capture("bullet.D14-6.sel");
+    dbg.mark("bullet.D14-6.selcount", selCount, suite="bullet");
+    printAll("\x07[D14-6] 10초 뒤: 선택 표에 유닛 {}기 (사람이 클릭·드래그한 결과), 밀림은 위치 기록에 남았습니다", selCount);
+}
+
+function d7() {                                  // D14-7: 수명 칸을 안 쓰면 쏜 뒤 유닛이 남는가
+    e7 = bullet.bullet(k7, P1, 3200, 3300, 0);
+    e7b = bullet.bullet(kA, P1, 3600, 3300, 0);
+    printAll("[D14-7] (3200,3300) 수명 안 씀 epd={} / (3600,3300) 수명 12 epd={} — 3초 뒤 상태를 적습니다", e7, e7b);
+}
+
+function d7check() {
+    const o1 = bread_epd(e7 + 19, 1);
+    const t1 = wread_epd(e7 + 25, 0);
+    const s1 = dwread_epd(e7 + 3);
+    const o2 = bread_epd(e7b + 19, 1);
+    const t2 = wread_epd(e7b + 25, 0);
+    const s2 = dwread_epd(e7b + 3);
+    printAll("[D14-7] 3초 뒤: 수명 안 씀 → 주문={} 종류={} 스프라이트={} / 수명 12 → 주문={} 종류={} 스프라이트={}",
+        o1, t1, s1, o2, t2, s2);
+    dbg.mark("bullet.D14-7.order1", o1, suite="bullet");
+    dbg.mark("bullet.D14-7.type1", t1, suite="bullet");
+    dbg.mark("bullet.D14-7.sprite1", s1, suite="bullet");
+    dbg.mark("bullet.D14-7.order2", o2, suite="bullet");
+    dbg.mark("bullet.D14-7.type2", t2, suite="bullet");
+    dbg.mark("bullet.D14-7.sprite2", s2, suite="bullet");
+}
+
+function d8() {                                  // D14-8: 껍데기(204 → 210) 가 바뀐 종류의 무기로 쏘는가
+    const s = bullet.bullet(kB, P1, 1000, 3700, 128);
+    const d = bullet.bullet(kB0, P1, 1600, 3700, 128);
+    const m = bullet.bullet(kA, P1, 2200, 3700, 128);
+    shellType = wread_epd(s + 25, 0);
+    printAll("\x07[D14-8] y=3700 에서 위로 3발: 왼쪽 204→{}(210), 가운데 210 직접, 오른쪽 208 — 왼쪽 탄 모양을 알려 주세요", shellType);
+    if (d == 0 || m == 0) { facingBad += 1; }
+    dbg.mark("bullet.D14-8.shell", shellType, suite="bullet");
+    dbg.check("bullet.D14-8.shell", shellType == 210, suite="bullet");
+}
+
+function d4() {                                  // D14-4: 같은 프레임에 같은 flingy 로 두 속도 (문서화용)
+    DoActions(kA.speed_actions(500));
+    d4a = bullet.bullet(kA, P1, 900, 2900, 64);
+    DoActions(kA.speed_actions(4000));
+    d4b = bullet.bullet(kA, P1, 1400, 2900, 64);
+    const sp = dwread(FLINGY_106);
+    dbg.mark("bullet.D14-4.a", d4a, suite="bullet");
+    dbg.mark("bullet.D14-4.b", d4b, suite="bullet");
+    dbg.mark("bullet.D14-4.speed", sp, suite="bullet");
+    dbg.check("bullet.D14-4.made", d4a != 0 && d4b != 0 ? 1 : 0, suite="bullet");
+    printAll("\x07[D14-4] 같은 프레임 두 발(속도 500 → 4000): flingy 최고속도 칸 = {} (4000) — 두 탄이 같은 빠르기로 나가는지 봐 주세요", sp);
+}
+
+function d9() {                                  // D14-9: height_actions 로 그리기 층이 바뀌는가
+    DoActions(k9.height_actions(20));
+    d9e = bullet.bullet(k9, P1, 1900, 2900, 64, height=12);
+    const spr = dwread_epd(d9e + 3);
+    var elev = 0xFFFF;
+    if (spr != 0) { elev = bread(spr + 13); }
+    const datElev = bread(U208_ELEV);            // units.dat elevation[208] — dat.addr 값에 번호를 또 더하면 안 된다
+    dbg.mark("bullet.D14-9.elev", elev, suite="bullet");
+    dbg.mark("bullet.D14-9.dat", datElev, suite="bullet");
+    DoActions(SetMemory(FLINGY_106, SetTo, SPEED_ORIG));   // D14-4 가 바꾼 속도를 관례값(−8001)으로 되돌린다
+    printAll("\x07[D14-9] height_actions(20) + height=12: 스프라이트 그리기 층 = {} (units.dat elevation = {}) — 높이가 달라 보이는지 알려 주세요", elev, datElev);
+}
+
+function report() {
+    dbg.mark("bullet.shots", shots, suite="bullet");
+    dbg.mark("bullet.D14-1.hits", hits, suite="bullet");
+    dbg.mark("bullet.D14-2.hits", hits2, suite="bullet");
+    dbg.mark("bullet.D14-1.facingbad", facingBad, suite="bullet");
+    dbg.mark("bullet.D14-2.facingbad", facingBad2, suite="bullet");
+    dbg.capture("bullet.D14-1.face");
+    dbg.capture("bullet.D14-1.dead");
+    dbg.capture("bullet.D14-2.face");
+    dbg.capture("bullet.D14-2.dead");
+    dbg.result("bullet.D14-1.all", hits, 8, suite="bullet");
+    printAll("\x07[D14] 끝: 만든 탄 {} (18), 방향 불일치 {}(0), 표적 죽음 D14-1 {}/8 · D14-2 {}/8", shots, facingBad, hits, hits2);
+}
+
+function setup_dbg() {                           // 배열 스냅숏 등록 (진행기가 첫 프레임에 한 번 부른다)
+    dbg.snapshot("bullet.D14-1.face", d1face, 8, every=0, suite="bullet");
+    dbg.snapshot("bullet.D14-1.dead", d1dead, 8, every=0, suite="bullet");
+    dbg.snapshot("bullet.D14-2.face", d2face, 8, every=0, suite="bullet");
+    dbg.snapshot("bullet.D14-2.dead", d2dead, 8, every=0, suite="bullet");
+    dbg.snapshot("bullet.D14-6.pos", d6pos, 10, every=0, suite="bullet");
+    dbg.snapshot("bullet.D14-6.sel", SEL_TABLE, 12, every=0, suite="bullet");
+}
+
+function step(f) {
+    const bf = f - 1949;
+    frame = bf;
+    if (bf == 1) {
+        setcurpl(0);
+        CenterView("Location 13");
+        printAll("\x07[D14] eudext.bullet 확인: 약 33초 동안 차례로 쏩니다. [필수] 줄과 눈으로 본 것을 알려 주세요");
+    }
+    if (bf == 12) { d0(); }
+    if (bf >= 24 && bf < 216) {
+        const k1 = bf - 24;
+        if (k1 % 24 == 0) { d1(k1 / 24); }
+        if (k1 % 24 == 12) { d1check(k1 / 24); }
+    }
+    if (bf >= 240 && bf < 432) {
+        const k2 = bf - 240;
+        if (k2 % 24 == 0) { d2(k2 / 24); }
+        if (k2 % 24 == 12) { d2check(k2 / 24); }
+    }
+    if (bf == 456) { d2b(); }
+    if (bf == 480) { d2bcheck(); }
+    if (bf == 492) { d5(); }
+    if (bf == 516) { d6(); }
+    if (bf == 540) { d7(); }
+    if (bf == 576) { d7check(); }
+    if (bf == 600) { d8(); }
+    if (bf == 620) { d4(); }
+    if (bf == 630) { d9(); }
+    if (bf == 756) { d6check(); }
+    if (bf == 780) { report(); }
+}
+
+function cleanup() {                             // 정리(2745): 탄막 유닛·표적 정리, 로케이션 되돌림
+    RemoveUnit(208, P1);
+    RemoveUnit(210, P1);
+    RemoveUnit(204, P1);
+    RemoveUnit("Terran Marine", P2);
+    setloc(27, 0, 0);
+}
+
+function clean_check() {
+    // 2026-09-18 4차: 탄이 실제로 날아다니게 된 뒤로 이 확인이 걸렸다 — 무엇이 남는지 하나씩 남긴다.
+    var n208 = 0;
+    var n210 = 0;
+    var n204 = 0;
+    var nmar = 0;
+    if (Command(P1, AtLeast, 1, 208)) { n208 = 1; }
+    if (Command(P1, AtLeast, 1, 210)) { n210 = 1; }
+    if (Command(P1, AtLeast, 1, 204)) { n204 = 1; }
+    if (Command(P2, AtLeast, 1, "Terran Marine")) { nmar = 1; }
+    dbg.mark("aa.clean.n208", n208);
+    dbg.mark("aa.clean.n210", n210);
+    dbg.mark("aa.clean.n204", n204);
+    dbg.mark("aa.clean.nmar", nmar);
+    // 2026-09-18 5차에서 밝혀진 것: 204 는 **유닛 수 표**에만 남는다. shell 종류(kB)는 204 로 만든 뒤 CUnit 의 종류
+    // 칸(+0x64)만 210 으로 바꾸므로, 게임의 유닛 수 표(0x582324, Command 가 읽는 표)는 그대로 "204 한 기" 로 센다.
+    // 실제 유닛은 210 으로 지워졌다(n210 = 0). 그래서 204 는 판정에서 빼고 기록만 한다 — shell 을 쓰면 늘 이렇게 된다.
+    dbg.check("aa.clean.bullet", list(Command(P1, Exactly, 0, 208), Command(P1, Exactly, 0, 210),
+        Command(P2, Exactly, 0, "Terran Marine")));
+}

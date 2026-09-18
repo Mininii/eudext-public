@@ -1,0 +1,166 @@
+// eudext.numfmt 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 D5-* 항목
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/numfmt_ingame.eds --work <작업 폴더>
+// 혼자(P1) 연다. 첫 사이클에 서식 22개를 만들어 기대 바이트와 비교하고(자체 점검), 약 10초(120 사이클)마다
+// [D5-1]~[D5-9] 아홉 줄을 한 줄씩 띄운다. 괄호·설명이 기대값이다. 화면 줄을 사진이나 글로 알려 주면 된다.
+//
+// 에뮬레이터는 바이트까지 확인했다. 인게임에서 볼 것: (1) 자체 점검이 에뮬레이터와 같게 23 / 23 인지(EUDX 마스크 쓰기·조건,
+// CP 기준 셀 조건이 실제 게임에서도 가정대로인지), (2) 전각·자리 색·만 단위 색·막대 색·한자가 설명대로 보이는지,
+// (3) 0x0D 채움 고정 폭이 옛 DisplayPrint 처럼 보이는지, (4) DPL 이름 표(0x6D0FDC)와 eudplib 이름(0x57EEEB)이 같은지.
+// 기대 문자열은 tests/ref_numfmt.py(파이썬 참조)로 만들었다. 이 파일을 고치면 시험(t_numfmt.py)의 기대 개수도 고친다.
+import eudext.numfmt as nf;
+import eudext.i64 as i64;
+
+var frame, okCount, total, lastBad, cellsOk;
+var v42 = 42;
+var vneg = 0xFFED2979;        // −1234567
+var v1234 = 1234;
+var vmax = 0xFFFFFFFF;
+var v987654 = 987654;
+var v123456789 = 123456789;
+var v12500 = 12500;
+var v1234567 = 1234567;
+var v3 = 3;
+var v105 = 105;
+var vabc = 0xABCDEF;
+var v255 = 255;
+var vm10 = 0xFFFFFFF6;        // −10
+var wlo, whi, glo, ghi, mlo, mhi;
+const b1 = Db(96);
+const b2 = Db(96);
+const b3 = Db(96);
+const b4 = Db(96);
+const b5 = Db(96);
+const b6 = Db(96);
+const b7 = Db(96);
+const b8 = Db(96);
+const b9 = Db(96);
+const b10 = Db(96);
+const b11 = Db(96);
+const b12 = Db(96);
+const b13 = Db(96);
+const b14 = Db(96);
+const b15 = Db(96);
+const b16 = Db(96);
+const b17 = Db(96);
+const b18 = Db(96);
+const b19 = Db(96);
+const b20 = Db(96);
+const b21 = Db(96);
+const b22 = Db(96);
+const cells = Db(64);
+const nameBuf = Db(32);
+
+function chk(buf, exp) {
+    total += 1;
+    if (strcmp(buf, exp) == 0) { okCount += 1; } else { lastBad = total; }
+}
+
+function run_tests() {
+    wlo = 0xFFFFFFFF; whi = 0xFFFFFFFF;           // 2^64 − 1
+    glo = 0xFAF08000; ghi = 2;                    // 12800000000
+    mlo = 0xFFFFFFFB; mhi = 0xFFFFFFFF;           // −5
+    const wmax = i64.wrap(wlo, whi);
+    const wgold = i64.wrap(glo, ghi);
+    const wm5 = i64.wrap(mlo, mhi);
+    dbstr_print(b1, nf.Dec(v42, width=5, fill="0"));
+    chk(b1, Db("00042"));
+    dbstr_print(b2, nf.Dec(vneg, sign="-", group=list(3, ",")));
+    chk(b2, Db("-1,234,567"));
+    dbstr_print(b3, nf.Dec(v1234, sign="+-", width=10, fill="0", group=list(3, ",")));
+    chk(b3, Db("+0,001,234"));
+    dbstr_print(b4, nf.Dec(vmax, fullwidth=True));
+    chk(b4, Db("\x0D４\x0D２\x0D９\x0D４\x0D９\x0D６\x0D７\x0D２\x0D９\x0D５"));
+    dbstr_print(b5, nf.dp.decfw48(v1234));
+    chk(b5, Db("\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D１\x0D２\x0D３\x0D４"));
+    dbstr_print(b6, nf.Dec(v987654, colors=list(0x08, 0x0E, 0x0F, 0x10, 0x11, 0x15)));
+    chk(b6, Db("\x159\x118\x107\x0F6\x0E5\x084"));
+    dbstr_print(b7, nf.Dec(v987654, fullwidth=True, colors=list(0x08, 0x0E, 0x0F, 0x10, 0x11, 0x15)));
+    chk(b7, Db("\x15９\x11８\x10７\x0F６\x0E５\x08４"));
+    dbstr_print(b8, nf.Man(v123456789, colors="dps", after=0x04));
+    chk(b8, Db("\x1D\x0D\x0D\x0D1\x04억\x1C2345\x04만"));
+    dbstr_print(b9, nf.dp.man18(wmax, color=True));
+    chk(b9, Db("\x1B1844\x04경\x196744\x04조"));
+    dbstr_print(b10, nf.Per(v12500));
+    chk(b10, Db("12.5\x0D\x0D"));
+    dbstr_print(b11, nf.dp.per8(v1234567, permil=True));
+    chk(b11, Db("1234.567"));
+    dbstr_print(b12, nf.dp.gauge40(v3));
+    chk(b12, Db("\x07l\x07l\x07l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l\x04l"));
+    dbstr_print(b13, nf.dp.dig2(v105));
+    chk(b13, Db("05"));
+    dbstr_print(b14, nf.Dec(vmax, glyphs="零一二三四五六七八九"));
+    chk(b14, Db("四二九四九六七二九五"));
+    dbstr_print(b15, nf.Hex(vabc));
+    chk(b15, Db("00ABCDEF"));
+    dbstr_print(b16, nf.Hex(v255, width=0, lower=True));
+    chk(b16, Db("ff"));
+    dbstr_print(b17, nf.dp.dec16(vm10));
+    chk(b17, Db("\x0D\x0D\x0D\x0D\x0D-\x0D\x0D\x0D\x0D\x0D\x0D\x0D\x0D10"));
+    dbstr_print(b18, nf.dp.hex12(vabc));
+    chk(b18, Db("\x0D\x0D\x0D\x0D00ABCDEF"));
+    dbstr_print(b19, nf.dp.dec20(wm5));
+    chk(b19, Db("-0000000000000000005"));
+    dbstr_print(b20, nf.Dec(wgold, group=list(3, ",")));
+    chk(b20, Db("12,800,000,000"));
+    dbstr_print(b21, nf.Dec(v987654, cut_low=2, width=8, fill=" "));
+    chk(b21, Db("  9876\x0D\x0D"));
+    dbstr_print(b22, nf.Dec(wm5, sign=" -", width=6, fill="0"));
+    chk(b22, Db("-00005"));
+    // 셀로 쓰고 다시 읽기 (CP 기준 DeathsX 조건)
+    const n = nf.fmt_dec_cells(EPD(cells), vneg, color=0x1F, sign="-", group=list(3, ","));
+    const back = nf.scan_dec_cells(EPD(cells), n, signed=True);
+    total += 1;
+    if (back == vneg) { okCount += 1; cellsOk = 1; } else { lastBad = total; }
+    dbstr_print(nameBuf, nf.dp.name20(0));
+}
+
+function show(k) {
+    if (k == 0) {
+        printAll("\x07[D5-1] 자체 점검 {} / {} \x04(23 / 23 — 두 수가 같으면 통과, 틀린 번호 {} 는 0)", okCount, total, lastBad);
+    }
+    if (k == 1) {
+        printAll("\x07[D5-2] 반각 \x04[{:s}] [{:s}] [{:s}]", b1, b2, b3);
+        printAll("\x04　　기대: [00042] [-1,234,567] [+0,001,234]");
+    }
+    if (k == 2) {
+        printAll("\x07[D5-3] 전각 \x04[{:s}] [{:s}]", b4, b5);
+        printAll("\x04　　기대: [４２９４９６７２９５] [１２３４] — 둘째 앞 빈칸은 안 보임");
+    }
+    if (k == 3) {
+        printAll("\x07[D5-4] 자리 색 [{:s}\x04] [{:s}\x04]", b6, b7);
+        printAll("\x04　　기대: 987654 가 앞에서부터 P6 갈색, P5 주황, P4 보라, P3 청록, P2 파랑, P1 빨강 (둘째는 전각)");
+    }
+    if (k == 4) {
+        printAll("\x07[D5-5] 만 단위 [{:s}] [{:s}]", b8, b9);
+        printAll("\x04　　기대: 1억2345만 (1 은 색 1D, 2345 는 1C) / 1844경6744조 (1B, 19) — 억·만·경·조는 흰색");
+    }
+    if (k == 5) {
+        printAll("\x07[D5-6] 소수·막대 [{:s}] [{:s}] [{:s}\x04] [{:s}]", b10, b11, b12, b13);
+        printAll("\x04　　기대: [12.5] [1234.567] [l 20개: 앞 3개 초록, 나머지 흰색] [05]");
+    }
+    if (k == 6) {
+        printAll("\x07[D5-7] 한자·16진 [{:s}] [{:s}] [{:s}]", b14, b15, b16);
+        printAll("\x04　　기대: [四二九四九六七二九五] [00ABCDEF] [ff]");
+    }
+    if (k == 7) {
+        printAll("\x07[D5-8] 고정 폭 [{:s}][{:s}][{:s}] [{:s}] [{:s}] [{:s}]", b17, b18, b19, b20, b21, b22);
+        printAll("\x04　　기대: [-10][00ABCDEF][-0000000000000000005] [12,800,000,000] [  9876] [-00005]");
+        printAll("\x04　　옛 DisplayPrint 처럼 앞의 보이지 않는 칸(0x0D) 만큼 떨어져 보이는지 (자리를 차지하는지) 알려 주세요");
+    }
+    if (k == 8) {
+        printAll("\x07[D5-9] 이름 DPL 표 [{:s}\x04] eudplib [{:n}\x04] 셀 왕복 {}", nameBuf, 0, cellsOk);
+        printAll("\x04　　기대: 두 이름이 같다 (첫 이름은 빨간색), 셀 왕복 1");
+    }
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        run_tests();
+        printAll("\x07[D5] eudext.numfmt 인게임 점검 — 약 10초마다 [D5-1]~[D5-9] 아홉 줄");
+    }
+    const k = frame % 120;
+    if (k >= 2 && k <= 10) {
+        show(k - 2);
+    }
+}

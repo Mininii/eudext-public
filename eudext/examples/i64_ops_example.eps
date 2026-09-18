@@ -1,0 +1,162 @@
+// eudext.i64 2차(WP4) 사용 예: 곱셈·나눗셈·부호 있는 나눗셈·비트·시프트·to32·abs·난수·배열 원소 연산
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/i64_ops_example.eds --work <작업 폴더>
+//
+// - 값 타입은 const 로 묶는다. 제자리 연산은 .v 통로(x.v *= y; x.v /= y; x.v <<= n; …) 또는 메서드(x.imul(y)).
+// - epScript 의 `/` 는 `//`(정수 나눗셈)으로 번역된다. `x << y` 는 대입이라 식으로 쓰면 빌드 오류 — 시프트는
+//   x.shl(n)(새 값), x.v <<= n;(제자리), x >> n, x.shr(n) 로 쓴다.
+// - 32비트 변수가 왼쪽인 `v * x`·`v / x` 는 eudplib 연산자가 먼저 불려 오류 → i64.mul(v, x), i64.div(v, x).
+// - 함수 인자·반환은 (lo, hi) 두 칸씩 (값 타입은 한 칸에 못 넘긴다).
+import eudext.i64 as i64;
+
+const gold = i64.Int64("12800000000");
+const price = i64.Int64(0);
+const bag = i64.Int64Array(8);
+var level;
+
+function mul(alo, ahi, blo, bhi) {
+    const r = i64.wrap(alo, ahi) * i64.wrap(blo, bhi);
+    return r.lo, r.hi;
+}
+
+function mul_ip(alo, ahi, blo, bhi) {
+    const a = i64.wrap(alo, ahi);
+    a.v *= i64.wrap(blo, bhi);
+    return a.lo, a.hi;
+}
+
+function mul32(v, w) {
+    const r = i64.mul32(v, w);
+    return r.lo, r.hi;
+}
+
+function mul_left32(v, alo, ahi) {
+    const r = i64.mul(v, i64.wrap(alo, ahi));
+    return r.lo, r.hi;
+}
+
+function mul_k(alo, ahi) {
+    const r = i64.wrap(alo, ahi) * 10000000000000000;
+    return r.lo, r.hi;
+}
+
+function qr(alo, ahi, blo, bhi) {
+    const q, r = i64.divmod(i64.wrap(alo, ahi), i64.wrap(blo, bhi));
+    return q.lo, q.hi, r.lo, r.hi;
+}
+
+function div_ip(alo, ahi, blo, bhi) {
+    const a = i64.wrap(alo, ahi);
+    a.v /= i64.wrap(blo, bhi);
+    return a.lo, a.hi;
+}
+
+function mod_k(alo, ahi) {
+    const r = i64.wrap(alo, ahi) % 1000;
+    return r.lo, r.hi;
+}
+
+function div_left32(v, blo, bhi) {
+    const q = i64.div(v, i64.wrap(blo, bhi));
+    return q.lo, q.hi;
+}
+
+function sdiv(alo, ahi, blo, bhi) {
+    const q, r = i64.sdivmod(i64.wrap(alo, ahi), i64.wrap(blo, bhi));
+    return q.lo, q.hi, r.lo, r.hi;
+}
+
+function sdiv_ct(alo, ahi, blo, bhi) {
+    const q = i64.sdiv(i64.wrap(alo, ahi), i64.wrap(blo, bhi), div0="ctrig");
+    const a = i64.wrap(alo, ahi);
+    const r = a.smod(i64.wrap(blo, bhi), div0="ctrig");
+    return q.lo, q.hi, r.lo, r.hi;
+}
+
+function sdiv_k(alo, ahi) {
+    const q = i64.sdiv(i64.wrap(alo, ahi), -7);
+    return q.lo, q.hi;
+}
+
+function bitmix(alo, ahi, blo, bhi) {
+    const a = i64.wrap(alo, ahi);
+    const b = i64.wrap(blo, bhi);
+    const r = (a & b) | (~a ^ b);
+    return r.lo, r.hi;
+}
+
+function bitmix_ip(alo, ahi, blo, bhi) {
+    const a = i64.wrap(alo, ahi);
+    const b = i64.wrap(blo, bhi);
+    a.v &= b;
+    a.v |= 0xF0000000F;
+    a.v ^= b;
+    a.iinvert();
+    return a.lo, a.hi;
+}
+
+function shifts(alo, ahi, n) {
+    const a = i64.wrap(alo, ahi);
+    const r = a.shl(n) ^ (a >> 3);
+    r.v <<= 1;
+    r.v >>= n;
+    const s = r.shr(29);
+    return s.lo, s.hi;
+}
+
+function narrow(alo, ahi) {
+    const a = i64.wrap(alo, ahi);
+    return a.to32(), i64.to32(a, signed=True), a.to32(saturate=False);
+}
+
+function absval(alo, ahi) {
+    const r = i64.abs(i64.wrap(alo, ahi));
+    return r.lo, r.hi;
+}
+
+function arr_ops(p, v) {
+    bag[p] = gold;
+    bag[p] *= v;
+    bag[p] /= 7;
+    bag[p] %= 1000000000000;
+    bag[p] &= 0xFFFFFFFFFF;
+    bag[p] |= 1;
+    bag[p] ^= v;
+    bag[p] <<= 2;
+    bag[p] >>= 1;
+    const e = bag[p];
+    return e.lo, e.hi;
+}
+
+function price_of(lv) {
+    // 레벨 lv 의 값 = gold × lv² ÷ 100 (64비트)
+    price.v = gold;
+    price.v *= lv;
+    price.imul(lv);
+    price.idiv(100);
+    return price.lo, price.hi;
+}
+
+function lcl(alo, ahi) {
+    const a = i64.wrap(alo, ahi);
+    const d = i64.Int64(0);
+    i64.LMul(d, a, 3);
+    i64.LDiv(d, d, 2);
+    i64.LXor(d, d, a);
+    i64.LiDiv(d, d, -5);
+    return d.lo, d.hi;
+}
+
+function rnd() {
+    const r = i64.rand();
+    return r.lo, r.hi;
+}
+
+function afterTriggerExec() {
+    level += 1;
+    const v = i64.Int64(0);
+    v.v = gold;
+    v.v *= level;
+    if (v >= 38400000000) {
+        gold.v /= 2;
+    }
+}

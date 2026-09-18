@@ -1,0 +1,170 @@
+// eudext.cell 예제 (epScript) — Ccode(Cell), Flag, CellArray, PCell, CtrigAsm 이름 (DESIGN 4.3)
+//
+// 불러오기: import eudext.cell as cell;   (eds 맨 앞에 eudext 부트 플러그인이 있어야 한다 — cell_example.eds)
+//
+// 주의
+// - Cell 은 const 로 묶는다: `const c = cell.Cell(0);` (var 에 담으면 32비트 변수로 바뀐다)
+// - const Cell 에 `c -= 1;`·`c = 1;` 은 번역 오류(Undefined variable c_1) → `c.v -= 1;`·`c.v = 1;` (또는 c.isub(1); c.assign(1);)
+// - 뺄셈 두 가지 (DESIGN 3.5)
+//     wrap(한 바퀴 돎, 0 - 1 = 0xFFFFFFFF): `c.v -= x;`  `c.isub(x);`  `arr[i] -= x;`
+//     포화(0 에서 멈춤):                    `c.isub_sat(x);`  `arr.isub_sat(i, x);`  `cell.SubCD(c, x)`  `c.SubtractNumber(k)`
+//   eudplib EUDLightVariable 의 `-=` 는 포화지만 Cell 은 wrap 이다.
+// - 값으로 읽기: `var y = c.v;` · `c.read()` — 읽을 때마다 f_dwread_epd(실행 약 36 트리거). 자주 읽는 값은 var 에 둔다.
+// - 비교는 모든 경계에서 정확하다(cmp 규칙). 조건을 값으로 돌려줄 때는 `? 1 : 0`.
+// - 모듈 함수는 f_ 가 붙어 번역된다: cell.cd(…) → cell.f_cd(…). CtrigAsm 이름(CD, SetCD …)·클래스는 그대로.
+import eudext.cell as cell;
+
+const hp = cell.Cell(100);              // 체력 — 0 에서 멈춰야 하는 값
+const timer = cell.Cell(0);             // 한 바퀴 도는 값
+const a, b = cell.CreateCcodes(2);      // CtrigAsm CreateCcodes
+const arr = cell.CreateCcodeArr(4);     // CellArray: arr[3] 은 Cell, arr[i](변수)는 읽기·쓰기
+const kills = cell.PCell();             // 플레이어별 8칸
+const done = cell.Flag();               // 1비트
+
+function damage(x) {                    // 포화 뺄셈
+    hp.isub_sat(x);
+}
+
+function tick_down(x) {                 // wrap 뺄셈
+    timer.v -= x;
+}
+
+function hp_value() {
+    return hp.v;
+}
+
+function timer_value() {
+    return timer.read();
+}
+
+function at_least(x) {                  // 변수와 비교 — 조건 칸을 그 자리에서 채운다
+    return hp >= x ? 1 : 0;
+}
+
+function below(x) {
+    if (hp < x) {
+        return 1;
+    }
+    return 0;
+}
+
+function not_equal(x) {
+    return hp != x ? 1 : 0;
+}
+
+function set_item(i, v) {
+    arr[i] = v;
+}
+
+function add_item(i, v) {
+    arr[i] += v;
+}
+
+function sub_item(i, v) {               // wrap
+    arr[i] -= v;
+}
+
+function sat_item(i, v) {               // 포화
+    arr.isub_sat(i, v);
+}
+
+function get_item(i) {
+    return arr[i];
+}
+
+function item_is(i, v) {
+    return arr[i] == v ? 1 : 0;
+}
+
+function item_below(i, v) {
+    if (arr[i] < v) {
+        return 1;
+    }
+    return 0;
+}
+
+function add_kill(p) {
+    kills[p] += 1;
+}
+
+function add_kill_cp() {                // 지금 CP 의 칸
+    kills[CurrentPlayer] += 1;
+}
+
+function kills_of(p) {
+    return kills[p];
+}
+
+// CtrigAsm 이름 (원래 의미): SetCD = 대입, AddCD = 덧셈, SubCD = 포화 뺄셈, CD(c, 값, 비교=Exactly)
+function ctrig(x, y) {
+    DoActions(cell.SetCD(a, x), cell.AddCD(a, 1), cell.SetCD(b, y), cell.SubCD(b, x));
+    var r = 0;
+    if (cell.CD(a, 1, AtLeast)) { r += 1; }         // a = x + 1 (wrap) ≥ 1
+    if (cell.CD(b, 0)) { r += 10; }                 // b = max(y − x, 0) = 0
+    if (cell.cd(a, y, AtMost)) { r += 100; }        // cell.f_cd — a ≤ y
+    return r;
+}
+
+function flag_demo() {
+    DoActions(done.Set());
+    if (done.IsSet()) {
+        return 1;
+    }
+    return 0;
+}
+
+// 인게임 점검 (docs/INGAME_CHECKLIST.md C2-1): 18 개가 모두 맞으면 18 을 돌려준다 (에뮬레이터 시험 t_cell.py 도 같은 값을 본다)
+function selftest() {
+    var n = 0;
+    var cp0 = getcurpl();
+    // 포화·wrap
+    hp.v = 5;
+    damage(3);
+    n += hp_value() == 2 ? 1 : 0;                   // 1: 5 ⊖ 3 = 2
+    damage(10);
+    n += hp_value() == 0 ? 1 : 0;                   // 2: 2 ⊖ 10 = 0 (SC Subtract 가 0 에서 멈춤)
+    timer.v = 1;
+    tick_down(3);
+    n += timer_value() == 0xFFFFFFFE ? 1 : 0;       // 3: 1 − 3 = 0xFFFFFFFE (wrap)
+    timer.isub(timer);
+    n += timer_value() == 0 ? 1 : 0;                // 4: 같은 칸끼리 = 0
+    // 변수와 비교
+    hp.v = 7;
+    n += at_least(7);                               // 5
+    n += at_least(8) ? 0 : 1;                       // 6
+    n += below(8);                                  // 7
+    n += below(7) ? 0 : 1;                          // 8
+    n += not_equal(0);                              // 9
+    n += not_equal(7) ? 0 : 1;                      // 10
+    // 배열 (변수 색인)
+    set_item(2, 0xFFFFFFFF);
+    add_item(2, 2);
+    n += item_is(2, 1);                             // 11: 0xFFFFFFFF + 2 = 1
+    sub_item(2, 3);
+    n += get_item(2) == 0xFFFFFFFE ? 1 : 0;         // 12: 1 − 3 (wrap)
+    set_item(3, 2);
+    sat_item(3, 5);
+    n += item_below(3, 1);                          // 13: 2 ⊖ 5 = 0
+    n += item_below(2, 0) ? 0 : 1;                  // 14: x < 0 은 늘 거짓
+    // 플레이어별
+    add_kill(1);
+    setcurpl(1);
+    add_kill_cp();
+    setcurpl(cp0);
+    n += kills_of(1) == 2 ? 1 : 0;                  // 15
+    // CtrigAsm 이름
+    n += ctrig(3, 5) == 101 ? 1 : 0;                // 16: a = 4, b = 2
+    n += ctrig(0xFFFFFFFF, 2) == 110 ? 1 : 0;       // 17: a = 0 (wrap), b = 0 (포화)
+    n += flag_demo();                               // 18
+    return n;
+}
+
+var tick;
+
+function afterTriggerExec() {
+    tick += 1;
+    if (tick == 24) {
+        const n = selftest();
+        printAll("\x07[C2-1] eudext.cell 점검 {} / 18 (18 이면 정상)", n);
+    }
+}

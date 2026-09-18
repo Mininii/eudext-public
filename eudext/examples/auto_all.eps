@@ -1,0 +1,351 @@
+// eudext 자동 점검 통합 맵 `auto_all` — 진행기 (docs/ingame_auto/classification.md 5절, DESIGN 4.21·5.5)
+//
+// 안전한 자동 점검(eudext 확인 항목 91개)을 한 맵에서 차례로 돈다. 사람은 맵을 혼자 열고 약 3분 30초 기다리면 되고,
+// 그 뒤 60초 동안 채팅 한 줄(선택, D17-6·E6-2)을 치고, 이어지는 화면 확인 쪽(선택)을 보면 된다.
+// 결과는 디버그 브리지 블록으로 나가고 `eudext/tools/ingame_auto.py --specs …/auto_all_spec.json` 이 판정한다.
+//
+// 빌드: python eudext/examples/auto_all_build.py --work <작업 폴더>  (기준 맵 testing/auto_all_base.scx)
+// 단계(phase)와 프레임 창은 아래 표와 같다. 판정 명세(auto_all_spec.json)도 같은 번호·이름을 쓴다.
+//
+//   1 units 1~55 · 2 pool 1~60(끝까지 돎) · 3 switch 1~100 · 4 s8 2~3 · 5 datpatch 1~25 · 6 i64 60~62
+//   7 i64_ops 90~92 · 8 i128 120~122 · 9 numfmt 150~152 · 10 cmp_cell 180~182 · 11 mathx 200~212
+//   12 players 230~232 · 13 plot 300~845 · 14 spawn 900~1905 · 15 bullet 1950~2740 · 16 display 2800~3250
+//   17 chat 3400~4900 · 18 final 4950~4952 · 19 assist(선택) 4960~6400 · 20 visual(선택) 6450~
+import aa_common as aa;          // 맨 먼저 — dbg.setup 이 여기서 돌아간다
+import aa_units as p1;
+import aa_pool as p2;
+import aa_early as pe;
+import aa_values as pv;
+import aa_players as p12;
+import aa_plot as p13;
+import aa_spawn as p14;
+import aa_bullet as p15;
+import aa_display as p16;
+import aa_chat as p17;
+import aa_visual as p20;
+import eudext.dbg as dbg;
+
+var f;
+var phase;
+var gf0;
+var assistBegun, assistEnded, assistStart;
+const wf = dbg.watch("aa.frame", f);
+const wp = dbg.watch("aa.phase", phase);
+
+function onPluginStart() {
+    p14.onPluginStart();                       // spawn RepeatType 등록 (원래 맵과 같은 자리)
+    p15.setup_dbg();                           // bullet 배열 스냅숏 등록
+}
+
+function afterTriggerExec() {
+    f += 1;
+
+    // ---------------------------------------------------------------- 터보 확인 (인게임 G-1, 2026-09-18)
+    // 터보([eudTurbo])가 없으면 한 사이클이 약 28~30 게임 프레임이라 아래 프레임 창이 30배 늦게 간다.
+    if (f == 1) { gf0 = dwread(0x57F23C); }
+    if (f == 25) {
+        const gf = dwread(0x57F23C);
+        dbg.mark("aa.turbo.gf0", gf0);
+        dbg.mark("aa.turbo.frames", gf - gf0);
+        dbg.check("aa.turbo", gf - gf0 <= 40 ? 1 : 0);
+        printAll("[auto_all] 터보 확인: 24 사이클 동안 게임 프레임 {} 지남 (터보면 24 근처, 없으면 700 근처)", gf - gf0);
+    }
+
+    // ---------------------------------------------------------------- 1 units (1~55)
+    if (f == 1) {
+        phase = 1;
+        dbg.suite_begin("units", phase=1);
+        dbg.mark("aa.units.start", f);
+        printAll("\x07[auto_all] eudext 자동 점검 통합 맵 — 약 3분 30초 동안 단계 18개가 돕니다. 그냥 기다려 주세요");
+    }
+    if (f >= 1 && f <= 55) { p1.step(f); }
+    if (f == 56) {
+        p1.cleanup();
+        aa.check_cp();
+        dbg.suite_end("units");
+        dbg.mark("aa.units.end", f);
+    }
+    if (f == 59) { p1.clean_check(); }
+
+    // ---------------------------------------------------------------- 2 pool (1~60 판정, 끝까지 돎)
+    if (f == 1) {
+        phase = 2;
+        dbg.suite_begin("pool", phase=2);
+        dbg.mark("aa.pool.start", f);
+    }
+    p2.step(f);
+    if (f == 60) {
+        aa.check_cp();
+        dbg.suite_end("pool");
+        dbg.mark("aa.pool.end", f);
+    }
+
+    // ---------------------------------------------------------------- 3 switch (1~100, 110 지움)
+    if (f == 1) {
+        phase = 3;
+        dbg.suite_begin("switch", phase=3);
+        dbg.mark("aa.switch.start", f);
+    }
+    if (f <= 110) { pe.switch_step(f); }
+    if (f == 100) {
+        aa.check_cp();
+        dbg.suite_end("switch");
+        dbg.mark("aa.switch.end", f);
+    }
+    if (f == 112) { pe.switch_clean(); }
+
+    // ---------------------------------------------------------------- 4 s8 (2~3)
+    if (f == 2) {
+        phase = 4;
+        dbg.suite_begin("s8", phase=4);
+        dbg.mark("aa.s8.start", f);
+    }
+    if (f == 2) { pe.s8_step(f); }
+    if (f == 3) {
+        aa.check_cp();
+        dbg.suite_end("s8");
+        dbg.mark("aa.s8.end", f);
+    }
+
+    // ---------------------------------------------------------------- 5 datpatch (1~25)
+    if (f == 1) {
+        phase = 5;
+        dbg.suite_begin("datpatch", phase=5);
+        dbg.mark("aa.datpatch.start", f);
+    }
+    if (f == 24) { pe.datpatch_step(f); }
+    if (f == 25) {
+        aa.check_cp();
+        dbg.suite_end("datpatch");
+        dbg.mark("aa.datpatch.end", f);
+    }
+
+    // ---------------------------------------------------------------- 6 i64 (60~62)
+    if (f == 60) {
+        phase = 6;
+        dbg.suite_begin("i64", phase=6);
+        dbg.mark("aa.i64.start", f);
+    }
+    if (f >= 60 && f <= 61) { pv.i64_step(f, 60, 61); }
+    if (f == 62) {
+        aa.check_cp();
+        dbg.suite_end("i64");
+        dbg.mark("aa.i64.end", f);
+    }
+
+    // ---------------------------------------------------------------- 7 i64_ops (90~92)
+    if (f == 90) {
+        phase = 7;
+        dbg.suite_begin("i64_ops", phase=7);
+        dbg.mark("aa.i64_ops.start", f);
+    }
+    if (f >= 90 && f <= 91) { pv.i64_ops_step(f, 90, 91); }
+    if (f == 92) {
+        aa.check_cp();
+        dbg.suite_end("i64_ops");
+        dbg.mark("aa.i64_ops.end", f);
+    }
+
+    // ---------------------------------------------------------------- 8 i128 (120~122)
+    if (f == 120) {
+        phase = 8;
+        dbg.suite_begin("i128", phase=8);
+        dbg.mark("aa.i128.start", f);
+    }
+    if (f >= 120 && f <= 121) { pv.i128_step(f, 120, 121); }
+    if (f == 122) {
+        aa.check_cp();
+        dbg.suite_end("i128");
+        dbg.mark("aa.i128.end", f);
+    }
+
+    // ---------------------------------------------------------------- 9 numfmt (150~152)
+    if (f == 150) {
+        phase = 9;
+        dbg.suite_begin("numfmt", phase=9);
+        dbg.mark("aa.numfmt.start", f);
+    }
+    if (f >= 150 && f <= 151) { pv.numfmt_step(f, 150, 151); }
+    if (f == 152) {
+        aa.check_cp();
+        dbg.suite_end("numfmt");
+        dbg.mark("aa.numfmt.end", f);
+    }
+
+    // ---------------------------------------------------------------- 10 cmp·cell (180~182)
+    if (f == 180) {
+        phase = 10;
+        dbg.suite_begin("cmp_cell", phase=10);
+        dbg.mark("aa.cmp_cell.start", f);
+    }
+    if (f >= 180 && f <= 181) { pv.cmp_cell_step(f, 180, 181); }
+    if (f == 182) {
+        aa.check_cp();
+        dbg.suite_end("cmp_cell");
+        dbg.mark("aa.cmp_cell.end", f);
+    }
+
+    // ---------------------------------------------------------------- 11 mathx (200~212)
+    if (f == 200) {
+        phase = 11;
+        dbg.suite_begin("mathx", phase=11);
+        dbg.mark("aa.mathx.start", f);
+    }
+    if (f >= 200 && f <= 210) { pv.mathx_step(f, 200); }
+    if (f == 212) {
+        aa.check_cp();
+        dbg.suite_end("mathx");
+        dbg.mark("aa.mathx.end", f);
+    }
+
+    // ---------------------------------------------------------------- 12 players (230~232)
+    if (f == 230) {
+        phase = 12;
+        dbg.suite_begin("players", phase=12);
+        dbg.mark("aa.players.start", f);
+    }
+    if (f >= 230 && f <= 231) { p12.step(f); }
+    if (f == 232) {
+        aa.check_cp();
+        dbg.suite_end("players");
+        dbg.mark("aa.players.end", f);
+    }
+
+    // ---------------------------------------------------------------- 13 plot (300~845)
+    if (f == 300) {
+        phase = 13;
+        dbg.suite_begin("plot", phase=13);
+        dbg.mark("aa.plot.start", f);
+    }
+    if (f >= 300 && f <= 845) { p13.step(f); }
+    if (f == 845) {
+        aa.check_cp();
+        dbg.suite_end("plot");
+        dbg.mark("aa.plot.end", f);
+    }
+    if (f == 850) { p13.cleanup(); }
+    if (f == 853) { p13.clean_check(); }
+
+    // ---------------------------------------------------------------- 14 spawn (900~1905)
+    if (f == 900) {
+        phase = 14;
+        dbg.suite_begin("spawn", phase=14);
+        dbg.mark("aa.spawn.start", f);
+    }
+    if (f >= 900 && f <= 1905) { p14.step(f); }
+    if (f == 1905) {
+        aa.check_cp();
+        dbg.suite_end("spawn");
+        dbg.mark("aa.spawn.end", f);
+    }
+    if (f == 1910) { p14.cleanup(); }
+    if (f == 1913) { p14.clean_check(); }
+
+    // ---------------------------------------------------------------- 15 bullet (1950~2740)
+    if (f == 1950) {
+        phase = 15;
+        dbg.suite_begin("bullet", phase=15);
+        dbg.mark("aa.bullet.start", f);
+    }
+    if (f >= 1950 && f <= 2740) { p15.step(f); }
+    if (f == 2740) {
+        aa.check_cp();
+        dbg.suite_end("bullet");
+        dbg.mark("aa.bullet.end", f);
+    }
+    if (f == 2745) { p15.cleanup(); }
+    if (f == 2752) { p15.cleanup(); }        // 탄이 날아다니게 된 뒤로 한 번 더 (죽는 중인 탄·표적)
+    if (f == 2760) { p15.clean_check(); }
+
+    // ---------------------------------------------------------------- 16 display (2800~3250)
+    if (f == 2800) {
+        phase = 16;
+        dbg.suite_begin("display", phase=16);
+        dbg.mark("aa.display.start", f);
+    }
+    if (f >= 2800 && f <= 3250) { p16.step(f); }
+    if (f == 3250) {
+        aa.check_cp();
+        dbg.suite_end("display");
+        dbg.mark("aa.display.end", f);
+    }
+    if (f == 3255) { p16.cleanup(); }
+    if (f == 3258) { p16.clean_check(); }
+
+    // ---------------------------------------------------------------- 17 chat (3400~4900)
+    if (f == 3400) {
+        phase = 17;
+        dbg.suite_begin("chat", phase=17);
+        dbg.mark("aa.chat.start", f);
+        aa.quiet = 1;                          // 이 창에서는 진행기·다른 단계가 줄을 내지 않는다
+        p17.enable(1, 0);
+    }
+    if (f >= 3400 && f <= 4900) {
+        p17.step(f);
+        p17.tick();
+    }
+    if (f == 4900) {
+        p17.enable(0, 0);
+        aa.quiet = 0;
+        aa.check_cp();
+        dbg.suite_end("chat");
+        dbg.mark("aa.chat.end", f);
+    }
+
+    // ---------------------------------------------------------------- 18 final (4950~4952)
+    if (f == 4950) {
+        phase = 18;
+        dbg.suite_begin("final", phase=18);
+        dbg.mark("aa.final.start", f);
+        p2.final_report();
+        pe.datpatch_final();
+    }
+    if (f == 4951) {
+        dbg.check("final.cp", aa.cpbad == 0, suite="final");
+        dbg.mark("final.cpbad", aa.cpbad, suite="final");
+    }
+    if (f == 4952) {
+        dbg.suite_end("final");
+        dbg.mark("aa.final.end", f);
+        printAll("\x07[auto_all] 자동 판정 끝 — 이제 채팅으로 \x07!\x07H안녕 éè 가나다\x04 를 보내 보세요(선택, 60초)");
+        printAll("\x07[auto_all] 보내지 않아도 60초 뒤에 끝납니다. 그 뒤에는 화면으로만 보는 쪽이 6초마다 돕니다");
+    }
+
+    // ---------------------------------------------------------------- 19 assist (선택, 4960~6400)
+    if (f == 4960) {
+        phase = 19;
+        p17.enable(1, 0);
+    }
+    if (f >= 4960 && f <= 6400) {
+        p17.tick();
+        p16.pinned(19);
+        if (assistBegun == 0 && p17.relayed >= 1) {
+            assistBegun = 1;
+            assistStart = f;
+            dbg.suite_begin("assist", phase=19);
+            dbg.mark("aa.assist.start", f);
+        }
+    }
+    if (f >= 4960 && f <= 6400 && assistBegun == 1 && assistEnded == 0) {
+        if (f >= assistStart + 120 || f == 6400) {
+            assistEnded = 1;
+            p17.assist_capture();
+            dbg.mark("assist.E6-2.pinbad", p16.pinBad, suite="assist");
+            dbg.check("assist.E6-2.pin", p16.pinBad == 0, suite="assist");
+            dbg.suite_end("assist");
+            dbg.mark("aa.assist.end", f);
+            dbg.mark("aa.done", f);
+            printAll("\x07[auto_all] 사람 조작 구간 끝 — 결과를 알려 주세요");
+        }
+    }
+    if (f == 6400 && assistBegun == 0) {
+        dbg.mark("aa.assist.skipped", 1);
+        dbg.mark("aa.done", f);
+        printAll("\x07[auto_all] 사람 조작 구간을 건너뛰었습니다 (채팅 없음) — 자동 판정은 끝났습니다");
+    }
+    if (f == 6402) { p17.enable(0, 0); }
+
+    // ---------------------------------------------------------------- 20 visual (선택, 6450~)
+    if (f == 6450) { phase = 20; }
+    if (f >= 6450) { p20.step(f); }
+}

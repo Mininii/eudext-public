@@ -1,0 +1,42 @@
+// auto_all phase 12 `players` (프레임 230~232) — B8-4(run_as·each 뒤 CP) + 참고로 F19-1b(방장 번호)·사람 판정
+// 원래 20 players_check 맵은 2인 + 관전자가 필요하다(B8-1~3·5~8). 싱글로 되는 공유 로직만 여기서 본다.
+//   setcurpl(P3) → run_as(Everyone, …) → SetResources(CurrentPlayer, Add, 1, Ore)
+//   → foreach(p : pl.each(Humans)) → SetResources(CurrentPlayer, Add, 1, Ore)  ⇒ P3 광물 +2
+// P3 는 빈 슬롯이지만 자원 칸(0x57F0F0 + 4·2)은 쓰인다.
+import eudext.players as pl;
+import eudext.misc as misc;
+import eudext.dbg as dbg;
+
+const ORE_P3 = 0x57F0F0 + 8;
+var ore0, ore1, loops;
+
+function step(f) {
+    if (f == 230) {
+        const cp0 = getcurpl();
+        ore0 = dwread(ORE_P3);
+        setcurpl(2);
+        pl.run_as(pl.Everyone, DisplayText("[B8-4] run_as(pl.Everyone) 로 보낸 줄 — 관전자에게도 보입니다"));
+        SetResources(CurrentPlayer, Add, 1, Ore);
+        foreach (p : pl.each(pl.Humans)) {
+            loops += 1;
+        }
+        SetResources(CurrentPlayer, Add, 1, Ore);
+        ore1 = dwread(ORE_P3);
+        setcurpl(cp0);
+    }
+    if (f == 231) {
+        const d = ore1 - ore0;
+        const hm = pl.human_mask();
+        const host = misc.host_player();
+        var h1 = 0;
+        if (pl.is_human(P1)) { h1 = 1; }
+        dbg.mark("players.B8-4.delta", d, suite="players");
+        dbg.mark("players.B8-4.loops", loops, suite="players");
+        dbg.mark("players.F19-1b.host", host, suite="players");
+        dbg.mark("players.human_mask", hm, suite="players");
+        dbg.mark("players.is_human1", h1, suite="players");
+        dbg.check("players.B8-4.cp", d == 2, suite="players");
+        printAll("\x07[B8-4] P3 광물 +{} (2) — run_as·each 뒤에도 CP 가 P3, 사람 순회 {}회, 사람 마스크 {}, 방장 {}",
+            d, loops, hm, host);
+    }
+}

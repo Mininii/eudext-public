@@ -1,0 +1,127 @@
+// eudext.i128 예제 (epScript) — DPS math128 호출 모양을 eudext 로 옮긴 모양 + 시험(tests/t_i128.py)이 부르는 함수들
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/i128_example.eds --work <작업 폴더>
+//
+// 규칙 (DESIGN 3.2·3.11·4.4b):
+//  - Int128 은 값 타입이다. var 가 아니라 const 로 묶는다(var 에 담으면 32비트 변수가 된다).
+//  - const 객체는 .v 통로로 고친다: x.v = y; x.v += y; x.v -= y;(wrap) x.v *= y; x.v /= y; x.v %= y;
+//  - 포화 뺄셈(0 에서 멈춤, 128비트 전체 기준)은 이름으로만: x.isub_sat(y); i128.sub_sat(a, b); i128.LSub128(a, b);
+//  - 함수 인자·반환은 칸 넷(w0~w3, w0 이 최하위)으로 넘기고 i128.wrap(w0, w1, w2, w3) 으로 감싼다.
+//    64비트 값 둘(Int64)은 i128.wrap(lo, hi) 로 감싼다.
+//  - 인쇄는 x.fmt() 를 넘긴다. `x << 3` 은 쓰지 않는다(Int128 에서 << 는 대입이고 시프트는 없다).
+//  - 나머지(% · divmod)도 Int128 이다(제수가 64비트 이하면 상위 칸은 0 — r.lo 가 64비트 Int64).
+import eudext.i128 as i128;
+import eudext.i64 as i64;
+
+const total = i128.Int128(0);                                  // 초기값만 (트리거 0)
+const dps = i128.Int128Array(8);                               // 플레이어별 128비트 값 (DPS PVWArrX 쌍 대체)
+const cap = i128.Int128("100000000000000000000000000000");     // 10^29 (10진 문자열 상수)
+var hits;
+
+function afterTriggerExec() {
+    total.v += i128.mul64(i64.Int64(123456789), 1000000007);   // DPS f_LMul128_2 + f_LAdd128
+    hits += 1;
+    if (total >= cap) {
+        printAll("total {}", total.fmt());                    // 값 타입은 fmt() 로 넘긴다 (3.2-7)
+    }
+}
+
+// ---- 시험용 함수 (반환: 칸 넷) ----
+
+function wsum(a0, a1, a2, a3, b0, b1, b2, b3) {             // a + b (wrap)
+    const r = i128.wrap(a0, a1, a2, a3) + i128.wrap(b0, b1, b2, b3);
+    return r.w0, r.w1, r.w2, r.w3;
+}
+
+function wdiff(a0, a1, a2, a3, b0, b1, b2, b3) {            // a − b (wrap, 제자리)
+    const a = i128.wrap(a0, a1, a2, a3);
+    a.v -= i128.wrap(b0, b1, b2, b3);
+    return a.w0, a.w1, a.w2, a.w3;
+}
+
+function sat(a0, a1, a2, a3, b0, b1, b2, b3) {              // max(a − b, 0) (포화, 128비트 전체 기준)
+    const a = i128.wrap(a0, a1, a2, a3);
+    a.isub_sat(i128.wrap(b0, b1, b2, b3));
+    return a.w0, a.w1, a.w2, a.w3;
+}
+
+function lsub(a0, a1, a2, a3, b0, b1, b2, b3) {             // DPS f_LSub128 별칭 (포화)
+    const r = i128.LSub128(i128.wrap(a0, a1, a2, a3), i128.wrap(b0, b1, b2, b3));
+    return r.w0, r.w1, r.w2, r.w3;
+}
+
+function prod64(alo, ahi, blo, bhi) {                        // DPS f_LMul128_2(W, W): 64×64 → 128
+    const r = i128.mul64(i64.wrap(alo, ahi), i64.wrap(blo, bhi));
+    return r.w0, r.w1, r.w2, r.w3;
+}
+
+function prod(a0, a1, a2, a3, b0, b1, b2, b3) {             // 128 × 128 (wrap)
+    const a = i128.wrap(a0, a1, a2, a3);
+    a.v *= i128.wrap(b0, b1, b2, b3);
+    return a.w0, a.w1, a.w2, a.w3;
+}
+
+function qr(a0, a1, a2, a3, b0, b1, b2, b3) {               // DPS f_LDiv128: 몫·나머지
+    const q, r = i128.divmod(i128.wrap(a0, a1, a2, a3), i128.wrap(b0, b1, b2, b3));
+    return q.w0, q.w1, q.w2, q.w3, r.w0, r.w1, r.w2, r.w3;
+}
+
+function vdivmod(a0, a1, a2, a3, b0, b1, b2, b3) {          // .v 통로: x.v /= y; (epScript `/` 는 `//`) · x.v %= y;
+    const q = i128.Int128(0);
+    const r = i128.Int128(0);
+    q.v = i128.wrap(a0, a1, a2, a3);
+    r.v = q;
+    q.v /= i128.wrap(b0, b1, b2, b3);
+    r.v %= i128.wrap(b0, b1, b2, b3);
+    return q.w0, q.w1, q.w2, q.w3, r.w0, r.w1, r.w2, r.w3;
+}
+
+function percent(alo, ahi, blo, bhi) {                       // DPS 모양: (a × b) / 100, 나머지는 % 로
+    const p = i128.mul64(i64.wrap(alo, ahi), i64.wrap(blo, bhi));
+    const q = p / 100;
+    const r = p % 100;
+    return q.w0, q.w1, q.w2, q.w3, r.w0;
+}
+
+function less(a0, a1, a2, a3, b0, b1, b2, b3) {             // 부호 없는 비교 (epScript 는 < 를 >= 의 부정으로 번역)
+    return i128.wrap(a0, a1, a2, a3) < i128.wrap(b0, b1, b2, b3) ? 1 : 0;
+}
+
+function atleast(a0, a1, a2, a3, b0, b1, b2, b3) {          // DPS Compare_128(A, AtLeast, B)
+    if (i128.LCmp128(i128.wrap(a0, a1, a2, a3), ">=", i128.wrap(b0, b1, b2, b3))) { return 1; }
+    return 0;
+}
+
+function arr_ops(p, v) {                                     // 배열 원소 연산 (iadditem 등)
+    dps[p] = v;
+    dps[p] += i128.mul64(v, 4294967296);
+    dps[p] -= 1;                                             // wrap
+    dps.isub_sat(p, 5);                                      // 포화
+    dps[p] *= 3;
+    dps[p] /= 2;
+    dps[p] %= 1000000000000000000000;
+    const e = dps[p];                                        // 사본 (읽기)
+    return e.w0, e.w1, e.w2, e.w3;
+}
+
+function lower(a0, a1, a2, a3) {                             // 64·32비트로 내리기 (포화 / 하위)
+    const a = i128.wrap(a0, a1, a2, a3);
+    const lo = a.to64();
+    const lw = a.to64(saturate=False);
+    return lo.lo, lo.hi, lw.lo, lw.hi, a.to32(), i128.to32(a, saturate=False);
+}
+
+function count_down(a0, a1, a2, a3) {                        // 루프 조건은 매번 다시 계산된다
+    const x = i128.Int128(0);
+    x.v = i128.wrap(a0, a1, a2, a3);
+    var n = 0;
+    while (x >= 100000000000000000000) {
+        x.isub_sat(333333333333333333333333);
+        n += 1;
+        if (n >= 20) { break; }
+    }
+    return n;
+}
+
+function print_to(buf, a0, a1, a2, a3) {                     // 10진 출력
+    dbstr_print(buf, "[", i128.wrap(a0, a1, a2, a3).fmt(), "]");
+}

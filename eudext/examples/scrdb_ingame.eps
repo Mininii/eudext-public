@@ -1,0 +1,95 @@
+// eudext.scrdb 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 D18-* 항목. **SCR_DB 런처가 필요하다.**
+//
+// 빌드 (둘 중 하나):
+//   (가) python eudext/tools/build.py euddraft eudext/examples/scrdb_ingame.eds --work <작업 폴더>
+//        eds 의 [MSQC] 줄은 아래 선언과 같게 손으로 적은 판이다(빌드 안에서 sync.verify 가 확인한다).
+//        이 파일이 db.frame() 을 부른다.
+//   (나) python eudext/examples/scrdb_build.py --work <작업 폴더>
+//        선언 수집 → eds 생성(sync 훅 + scrdb 훅) → euddraft. 훅이 frame 을 내므로 아래 db.frame() 은 아무것도 내지 않는다.
+// Windows 에서는 eds 의 VenvSite 를 euddraft 용 lupa 폴더(C:\Users\whatd\.venvs\euddraft011_site)로 바꾼다.
+// 빌드 때 매니페스트가 C:\Temp\SCR_DB_manifest_eudext_scrdb_check.json 에 쓰인다(런처가 개발 PC 에서 찾는 자리).
+//
+// 확인 순서(자세한 절차는 INGAME_CHECKLIST D18):
+//   1. 런처를 켜고 맵을 연다 → [D18-1] 줄의 Seq 가 늘고 LocalPlayer = P번호+1, 런처 로그에 "연결"(알림음).
+//   2. 세이브가 없으면 런처가 곧바로 준비 신호를 보낸다 → [D18-2] "불러오기 끝" (값 0, 처음이면 Big/Stat/Flags 를 채운다).
+//   3. 1초마다 Gold 가 1 씩 는다. F8 → [D18-3] 저장 신호 → 런처가 파일로 쓰고 → "저장 완료".
+//   4. 맵을 다시 연다 → [D18-2] 에 저장했던 Gold·Level·Big(0x12345678)·Stat(7)·Flags(0xABCDEF01) 가 나온다.
+import eudext.scrdb as scrdb;
+import eudext.dbg as dbg;
+import eudext.sync as sync;
+
+// --- 선언: 모듈 최상위 (선언 수집과 euddraft 빌드에서 같은 순서로 실행된다) ---
+const bus = sync.Bus("msqc", qc_unit=49, debug=0, name="chk");        // 49: 이 맵에서 쓰지 않는 유닛
+const saveKey = bus.key_down("F8", guard=sync.not_typing());            // 저장 요청 (동기화 입력)
+// 값 자리: arr = 0x58F678 + (P*8 + index)*4, slot(var) = 0x58F778 + (P*4 + slot)*4 (런처가 닿는 미러 구역, eudplib 이 쓰지 않는 칸)
+// (epScript 는 var 가 예약어라 var 항목을 scrdb.slot(…) 으로 만든다)
+const db = scrdb.setup(list(scrdb.arr("Gold", 0), scrdb.arr("Level", 1), scrdb.arr("BigValue", 2),
+                            scrdb.slot("Stat", 0), scrdb.slot("Flags", 1)),
+                       "eudext_scrdb_check", layout=7, anchor=0x594198,
+                       xfer_base=0x58F678, xfer_stride=8, slot_base=0x58F778, slot_stride=4,
+                       bus=bus, manifest="auto");
+
+const loaded = PVariable();
+const saves = PVariable();
+var tick;
+
+function showStatus() {
+    printAll("\x04[D18-1] Seq {} / LocalPlayer {}(P번호+1) / 받은 워드 P1 {} P2 {} / 불러옴 P1 {} P2 {} / 저장 P1 {} P2 {}",
+        dwread(db.addr("Seq")), dwread(db.addr("LocalPlayer")),
+        dwread(db.msqc_count_addr(0, 0)), dwread(db.msqc_count_addr(0, 1)),
+        loaded[0], loaded[1], saves[0], saves[1]);
+}
+
+function showValues(p) {
+    printAll("\x07[D18-2] P{} 값: Gold {} Level {} Big 0x{:x} Stat {} Flags 0x{:x}", p + 1,
+        dwread_epd(db.field_epd("Gold", p)), dwread_epd(db.field_epd("Level", p)),
+        dwread_epd(db.field_epd("BigValue", p)), dwread_epd(db.field_epd("Stat", p)),
+        dwread_epd(db.field_epd("Flags", p)));
+}
+
+function beforeTriggerExec() {
+    db.frame();                                   // 표지 블록 → 수신기 → 알림음 ([MSQC] 뒤. 훅이 있으면 아무것도 내지 않는다)
+    tick += 1;
+    const cp0 = getcurpl();
+    foreach(p : EUDLoopPlayer("Human")) {
+        if (db.launcher_ready(p)) {               // 런처가 불러오기를 끝냈다 (0xFFFE, MSQC 로 받음)
+            DoActions(db.clear_ready(p));
+            loaded[p] = 1;
+            dbg.mark("m14.loaded", loaded[0]);
+            dbg.mark("done");
+            if (dwread_epd(db.field_epd("BigValue", p)) == 0) {      // 처음: 상위 16비트가 있는 값을 채운다
+                dwwrite_epd(db.field_epd("BigValue", p), 0x12345678);
+                dwwrite_epd(db.field_epd("Stat", p), 7);
+                dwwrite_epd(db.field_epd("Flags", p), 0xABCDEF01);
+            }
+            printAll("\x07[D18-2] P{} 불러오기 끝", p + 1);
+            showValues(p);
+        }
+        if (tick % 24 == 0) {
+            if (loaded[p] == 1) {
+                dwadd_epd(db.field_epd("Gold", p), 1);
+            }
+        }
+        if (saveKey.pulse(p)) {
+            if (loaded[p] == 1) {
+                saves[p] += 1;
+                dbg.mark("m14.saves", saves[0]);
+                dwadd_epd(db.field_epd("Level", p), 1);
+                DoActions(db.save_signal(p));     // 값이 다 준비된 순간에만 올린다
+                printAll("\x1F[D18-3] P{} 저장 신호 {}번째 (런처가 파일을 쓰면 '저장 완료')", p + 1, saves[p]);
+            } else {
+                printAll("\x08[D18-3] P{} 아직 불러오지 않아 저장하지 않는다 (런처 없음?)", p + 1);
+            }
+        }
+        if (db.save_done(p)) {                    // 런처가 세이브 파일까지 썼다 (0xFFFD)
+            DoActions(db.clear_save_done(p));
+            printAll("\x07[D18-3] P{} 저장 완료", p + 1);
+            showValues(p);
+        }
+    }
+    setcurpl(cp0);
+    if (tick % 72 == 1) {
+        dbg.mark("m14.tick", tick);
+        showStatus();
+    }
+}

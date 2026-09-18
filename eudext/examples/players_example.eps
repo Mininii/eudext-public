@@ -1,0 +1,75 @@
+// eudext players 예제 (epScript) — 대상 목록과 플레이어별 액션 (DESIGN 4.9)
+//
+//   pl.run_as(대상, 액션…)       → pl.f_run_as(…)  RotatePlayer 대체. 상수 대상은 한 트리거, 끝에서 CP 복구
+//   pl.display(대상, "글")        → display 모듈(WP6) 전에는 문자열만
+//   foreach(p : pl.humans())      → 컴파일 시점 펼침 (p 는 정수)
+//   foreach(p : pl.each(대상))    → 런타임 반복. 본문에서 CP = p, break/continue 가능, 끝나면 CP 복구
+//   pl.contains_user(대상)        → 이 PC(관전자 128~131 포함)가 대상인가 — 로컬 조건, 표시에만 쓴다
+//
+// 목록 인자는 list(…) 로 쓴다 (epScript 의 [a, b] 는 EUDArray 가 된다).
+// 대문자 이름(pl.Targets, pl.Force, pl.Allies, pl.PerPlayer, pl.Humans …)은 이름 번역이 없다.
+import eudext.players as pl;
+import eudext.local as local;
+import eudext.dbg as dbg;
+
+const kills = pl.PerPlayer(EUDVariable);      // 플레이어마다 변수 하나 (CreateVarArr 대체)
+const team = pl.Targets(P1, pl.Allies(P1));   // P1 과 P1 의 동맹 (동맹은 런타임 판정)
+var frames, obsFlag, allFlag, human1, hmask;
+
+function afterTriggerExec() {
+    frames += 1;
+
+    if (frames == 24) {
+        pl.display(pl.Everyone, "\x04eudext players 예제 (epScript)");   // 사람 + 관전자
+        pl.play_wav(pl.Everyone, "sound\\glue\\bnet.wav");
+        pl.run_as(pl.Humans, SetResources(CurrentPlayer, Add, 50, Ore));  // 지금 사람인 슬롯만
+        pl.run_as(team, DisplayText("\x07팀에게만"));
+        pl.run_as(list(P1, P2), DisplayText("\x1fP1, P2 에게"), PlayWAV("sound\\glue\\bnet.wav"));
+        pl.run_as(pl.Force(1), DisplayText("\x04Force1 에게"));
+    }
+
+    foreach(p : pl.humans()) {          // 사람 슬롯마다 코드가 펼쳐진다
+        kills[p] += 1;
+    }
+
+    foreach(p : pl.each(pl.Humans)) {   // 본문 한 벌, 런타임에 사람인 플레이어만
+        if (p == 7) continue;
+        kills[p] += 2;                  // 변수 번호도 += 는 된다 (대입은 kills.set(p, 값))
+        SetResources(CurrentPlayer, Add, 1, Gas);   // CP = p
+    }
+
+    if (frames == 36) {
+        // B8-1·B8-8: 이 PC 가 관전자·전체 목록에 드는가 (로컬 판정 — 표시 전용, 각 PC 에서 리더를 켠다)
+        local.begin();
+        if (pl.contains_user(pl.Observers)) { obsFlag = 1; }
+        if (pl.contains_user(pl.Everyone)) { allFlag = 1; }
+        local.end();
+        if (pl.is_human(P2)) { human1 = 1; }
+        hmask = pl.human_mask();
+        dbg.mark("m20.contains_obs", obsFlag);
+        dbg.mark("m20.contains_all", allFlag);
+        dbg.mark("m20.is_human1", human1);
+        dbg.mark("m20.human_mask", hmask);
+        dbg.mark("m20.frame", frames);
+        // B8-7: 관전자 CP 로 표시 전용 액션 (오류·튕김이 없어야 한다)
+        pl.run_as(pl.Observers, CenterView("Anywhere"), MinimapPing("Anywhere"));
+        dbg.mark("done");
+        printAll("[B8-1] 이 PC: 관전자 {} 전체 {} / [B8-5] is_human(P2) {} 사람 마스크 {}", obsFlag, allFlag, human1, hmask);
+    }
+    if (frames == 48) {
+        if (pl.contains_user(team)) {
+            // 로컬 블록: 이 PC 가 팀일 때만. 공유 상태는 바꾸지 않는다.
+            // DisplayTextAll 은 CP 를 이 PC 번호로 바꾸므로 뒤에서 캐시 값으로 되돌린다.
+            DisplayTextAll("\x04(이 PC 는 P1 팀)");
+            setcurpl2cpcache();
+        }
+        if (pl.is_human(P2)) {
+            kills.set(1, 0);
+        }
+        const hm = pl.human_mask();
+        if (hm & 1) {
+            const k = kills.get(frames % 8);
+            kills.set(0, k);
+        }
+    }
+}

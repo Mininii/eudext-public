@@ -1,0 +1,75 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "14_scrdb_check",
+ "title": "SCR_DB 런처 연동 (D18 — loaded·saves 만 자동)",
+ "timeout_s": 600,
+ "items": [
+  {
+   "kind": "group",
+   "id": "D18-2",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m14.loaded",
+     "equals": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "peek 표지 블록 0x594198·값 칸 0x58F678(arr)·0x58F778(slot) (미러 — SCR_DB 시그니처로 블록을 찾으면 dbg 블록 없이도 읽힘) — Gold/Level/BigValue/Stat/Flags(P1)",
+     "watch m14.loaded[0]",
+     "file: 런처 Log.txt (읽기만)",
+     "peek 수신 워드 수 msqc_count"
+    ],
+    "expect": "loaded=1, Gold 0 Level 0 Big 0x12345678 Stat 7 Flags 0xABCDEF01, 받은 워드 P1 ≥ 1, 로그 '저장된 파일이 없습니다'",
+    "done_marker": "loaded[0] == 1",
+    "category": "EXTERNAL",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "14 scrdb_check",
+    "bundle": "14 scrdb",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "loaded PVariable dbg.watch (값 칸은 미러)"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "D18-3",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m14.saves",
+     "min": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m14.saves[0]",
+     "peek 표지 블록 0x594198·값 칸 0x58F678(arr)·0x58F778(slot) (미러 — SCR_DB 시그니처로 블록을 찾으면 dbg 블록 없이도 읽힘) — Level",
+     "file: 런처 Log.txt (읽기만)"
+    ],
+    "expect": "F8 뒤 saves=1, Level 1, 로그 '저장 시작 … 저장 완료. (5개 항목)', 저장 완료 표식(0xFFFD) 처리",
+    "done_marker": "save_done 처리 뒤",
+    "category": "EXTERNAL",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "14 scrdb_check",
+    "bundle": "14 scrdb",
+    "notes": "사람 몫: F8",
+    "extra": [
+     "AUTO_ASSIST",
+     "AUTO"
+    ],
+    "instrument": "saves PVariable dbg.watch"
+   }
+  }
+ ],
+ "done": [
+  "done"
+ ]
+}

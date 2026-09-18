@@ -1,0 +1,243 @@
+// eudext.i128 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 F20-1 (권장)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/i128_ingame.eds --work <작업 폴더>
+// 혼자(P1) 연다. 첫 사이클에 시험을 한 번 돌리고, 약 1초(24 사이클)마다 [F20-1]~[F20-9] 줄을 한 줄씩 띄운다(다 띄우면 처음부터 다시).
+// 각 줄의 괄호 안이 기대값이다(마지막 줄 "점검 N / N" 의 두 수가 같으면 통과). 화면 줄을 사진이나 글로 알려 주면 된다.
+//
+// 128비트 본문은 i64 와 같은 기법(트리거 next 자기 수정, 조건 amount·액션 값 칸 채우기, 변수 트리거 사슬,
+// "값 ≥ 빼는 값" 이 보장된 SC Subtract, 0xFFFFFFFF ⊖ y)만 쓴다 — 새 가정은 없다.
+// 에뮬레이터에서 이 맵이 "점검 46 / 46" 을 내는지 tests/t_i128.py 가 확인한다.
+// (이 파일은 기대값을 파이썬으로 계산해 만든 것이다. 값을 바꾸면 tests/t_i128.py 의 INGAME_TOTAL 도 고친다.)
+import eudext.i128 as i128;
+import eudext.i64 as i64;
+
+const res = i128.Int128Array(48);
+var frame, okCount, total, ti;
+
+function keep(r0, r1, r2, r3, e0, e1, e2, e3) {
+    const x = i128.wrap(r0, r1, r2, r3);
+    res[ti] = x;
+    ti += 1;
+    total += 1;
+    if (x == i128.wrap(e0, e1, e2, e3)) { okCount += 1; }
+}
+
+function tadd(a0, a1, a2, a3, b0, b1, b2, b3, e0, e1, e2, e3) {
+    const r = i128.wrap(a0, a1, a2, a3) + i128.wrap(b0, b1, b2, b3);
+    keep(r.w0, r.w1, r.w2, r.w3, e0, e1, e2, e3);
+}
+
+function tsub(a0, a1, a2, a3, b0, b1, b2, b3, e0, e1, e2, e3) {
+    const a = i128.wrap(a0, a1, a2, a3);
+    a.v -= i128.wrap(b0, b1, b2, b3);
+    keep(a.w0, a.w1, a.w2, a.w3, e0, e1, e2, e3);
+}
+
+function tsat(a0, a1, a2, a3, b0, b1, b2, b3, e0, e1, e2, e3) {
+    const r = i128.sub_sat(i128.wrap(a0, a1, a2, a3), i128.wrap(b0, b1, b2, b3));
+    keep(r.w0, r.w1, r.w2, r.w3, e0, e1, e2, e3);
+}
+
+function tcmp(a0, a1, a2, a3, b0, b1, b2, b3, e0, e1, e2, e3) {
+    const a = i128.wrap(a0, a1, a2, a3);
+    const b = i128.wrap(b0, b1, b2, b3);
+    var m = 0;
+    if (a >= b) { m += 1; }
+    if (a > b) { m += 2; }
+    if (a <= b) { m += 4; }
+    if (a < b) { m += 8; }
+    if (a == b) { m += 16; }
+    if (a != b) { m += 32; }
+    keep(m, 0, 0, 0, e0, e1, e2, e3);
+}
+
+function tmul64(alo, ahi, blo, bhi, e0, e1, e2, e3) {
+    const r = i128.mul64(i64.wrap(alo, ahi), i64.wrap(blo, bhi));
+    keep(r.w0, r.w1, r.w2, r.w3, e0, e1, e2, e3);
+}
+
+function tmul32(v, w, e0, e1, e2, e3) {
+    const r = i128.mul64(v, w);
+    keep(r.w0, r.w1, r.w2, r.w3, e0, e1, e2, e3);
+}
+
+function tmul(a0, a1, a2, a3, b0, b1, b2, b3, e0, e1, e2, e3) {
+    const a = i128.wrap(a0, a1, a2, a3);
+    a.v *= i128.wrap(b0, b1, b2, b3);
+    keep(a.w0, a.w1, a.w2, a.w3, e0, e1, e2, e3);
+}
+
+function tmulk16(a0, a1, a2, a3, e0, e1, e2, e3) {
+    const r = i128.wrap(a0, a1, a2, a3) * 10000000000000000;
+    keep(r.w0, r.w1, r.w2, r.w3, e0, e1, e2, e3);
+}
+
+function tmulk65(alo, ahi, e0, e1, e2, e3) {
+    const r = i128.mul64(i64.wrap(alo, ahi), 6500000000000);
+    keep(r.w0, r.w1, r.w2, r.w3, e0, e1, e2, e3);
+}
+
+function tqr(a0, a1, a2, a3, b0, b1, b2, b3, q0, q1, q2, q3, r0, r1, r2, r3) {
+    const q, r = i128.divmod(i128.wrap(a0, a1, a2, a3), i128.wrap(b0, b1, b2, b3));
+    keep(q.w0, q.w1, q.w2, q.w3, q0, q1, q2, q3);
+    keep(r.w0, r.w1, r.w2, r.w3, r0, r1, r2, r3);
+}
+
+function tdivk5000(a0, a1, a2, a3, q0, q1, q2, q3, r0, r1, r2, r3) {
+    const a = i128.wrap(a0, a1, a2, a3);
+    const q = a / 5000;
+    const r = a % 5000;
+    keep(q.w0, q.w1, q.w2, q.w3, q0, q1, q2, q3);
+    keep(r.w0, r.w1, r.w2, r.w3, r0, r1, r2, r3);
+}
+
+function tdivk100(a0, a1, a2, a3, q0, q1, q2, q3, r0, r1, r2, r3) {
+    const q, r = i128.divmod(i128.wrap(a0, a1, a2, a3), 100);
+    keep(q.w0, q.w1, q.w2, q.w3, q0, q1, q2, q3);
+    keep(r.w0, r.w1, r.w2, r.w3, r0, r1, r2, r3);
+}
+
+function tdivk3(a0, a1, a2, a3, q0, q1, q2, q3, r0, r1, r2, r3) {
+    const q, r = i128.LDiv128(i128.wrap(a0, a1, a2, a3), 3);
+    keep(q.w0, q.w1, q.w2, q.w3, q0, q1, q2, q3);
+    keep(r.w0, r.w1, r.w2, r.w3, r0, r1, r2, r3);
+}
+
+function tlower(a0, a1, a2, a3, e0, e1, e2, e3, f0, f1, f2, f3, g0, g1, g2, g3, h0, h1, h2, h3) {
+    const a = i128.wrap(a0, a1, a2, a3);
+    const s = a.to64();
+    const l = a.to64(saturate=False);
+    keep(s.lo, s.hi, 0, 0, e0, e1, e2, e3);
+    keep(l.lo, l.hi, 0, 0, f0, f1, f2, f3);
+    keep(a.to32(), 0, 0, 0, g0, g1, g2, g3);
+    keep(i128.to32(a, saturate=False), 0, 0, 0, h0, h1, h2, h3);
+}
+
+function run_tests() {
+    // [F20-1]
+    tadd(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0);
+    tadd(0xFFFFFFFF, 0xFFFFFFFF, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0);
+    tadd(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1);
+    tsub(0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF);
+    tsub(0x0, 0x0, 0x0, 0x1, 0x1, 0x0, 0x0, 0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x0);
+    tsat(0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0);
+    tsat(0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0x0, 0x0);
+    tsat(0x5, 0x0, 0x0, 0x80000000, 0x0, 0x0, 0x0, 0x80000000, 0x5, 0x0, 0x0, 0x0);
+    // [F20-2]
+    tcmp(0x0, 0x0, 0x0, 0x80000000, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x7FFFFFFF, 0x23, 0x0, 0x0, 0x0);
+    tcmp(0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x1, 0x0, 0x2C, 0x0, 0x0, 0x0);
+    tcmp(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x15, 0x0, 0x0, 0x0);
+    tcmp(0x0, 0x0, 0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x0, 0x23, 0x0, 0x0, 0x0);
+    // [F20-3]
+    tmul64(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x1, 0x0, 0xFFFFFFFE, 0xFFFFFFFF);
+    tmul64(0xA7640000, 0xDE0B6B3, 0x6630E800, 0x5E9, 0xA0000000, 0xC9F80A72, 0xAA1FB49, 0x52);
+    tmul64(0x9ABCDEF0, 0x12345678, 0x87654321, 0xFEDCBA9, 0xE5618CF0, 0x2236D88F, 0xAD77D742, 0x121FA00);
+    tmul32(0xFFFFFFFF, 0xFFFFFFFF, 0x1, 0xFFFFFFFE, 0x0, 0x0);
+    // [F20-4]
+    tmul(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x1, 0x0, 0x0, 0x0);
+    tmul(0x1, 0x0, 0x1, 0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0x0, 0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF);
+    tmulk16(0x3039, 0x0, 0x0, 0x10, 0x11F90000, 0xB13680EF, 0x6, 0xFC100000);
+    tmulk65(0xA7640000, 0xDE0B6B3, 0xA0000000, 0xC9F80A72, 0xAA1FB49, 0x52);
+    // [F20-5]
+    tqr(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xA, 0x0, 0x0, 0x0, 0x99999999, 0x99999999, 0x99999999, 0x19999999, 0x5, 0x0, 0x0, 0x0);
+    tqr(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x0, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0);
+    tqr(0x3039, 0x0, 0x0, 0x80000000, 0x89ABCDEF, 0x1234567, 0x0, 0x0, 0x69E8, 0x80000000, 0x70, 0x0, 0xC4D688A1, 0x91A2B3, 0x0, 0x0);
+    tqr(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x80000001, 0x0, 0x0, 0x0, 0xFFFFFFF0, 0x7, 0xFFFFFFFC, 0x1, 0xF, 0x0, 0x0, 0x0);
+    // [F20-6]
+    tqr(0x3, 0x0, 0x0, 0x10, 0x1, 0x0, 0x40, 0x0, 0x3FFFFFFF, 0x0, 0x0, 0x0, 0xC0000004, 0xFFFFFFFF, 0x3F, 0x0);
+    tqr(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x1, 0x0, 0x0, 0x80000000, 0x1, 0x0, 0x0, 0x0, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0x7FFFFFFF);
+    tqr(0x1, 0x0, 0x1, 0x0, 0x2, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x1, 0x0);
+    tqr(0x7B, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x7B, 0x0, 0x0, 0x0);
+    // [F20-7]
+    tdivk5000(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x113404EA, 0x52BD3C36, 0x758E2196, 0xD1B71, 0x5AF, 0x0, 0x0, 0x0);
+    tdivk100(0x3039, 0x0, 0x0, 0x10, 0x8F5C2971, 0x5C28F5C2, 0x28F5C28F, 0x0, 0x15, 0x0, 0x0, 0x0);
+    tdivk3(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x55555555, 0x55555555, 0x55555555, 0x55555555, 0x0, 0x0, 0x0, 0x0);
+    // [F20-8]
+    tlower(0x5, 0x0, 0x1, 0x0, 0xFFFFFFFF, 0xFFFFFFFF, 0x0, 0x0, 0x5, 0x0, 0x0, 0x0, 0xFFFFFFFF, 0x0, 0x0, 0x0, 0x5, 0x0, 0x0, 0x0);
+}
+
+function show(n) {
+    if (n == 0) {
+        printAll("\x07[F20-1] 덧셈·뺄셈(wrap·포화) {} {} (0 18446744073709551616)", res[0].fmt(), res[1].fmt());
+    }
+    if (n == 1) {
+        printAll("\x07[F20-1] 덧셈·뺄셈(wrap·포화) {} {} (79228162514264337593543950336 340282366920938463463374607431768211455)", res[2].fmt(), res[3].fmt());
+    }
+    if (n == 2) {
+        printAll("\x07[F20-1] 덧셈·뺄셈(wrap·포화) {} {} (79228162514264337593543950335 0)", res[4].fmt(), res[5].fmt());
+    }
+    if (n == 3) {
+        printAll("\x07[F20-1] 덧셈·뺄셈(wrap·포화) {} {} (18446744073709551615 5)", res[6].fmt(), res[7].fmt());
+    }
+    if (n == 4) {
+        printAll("\x07[F20-2] 비교(비트: ≥ > ≤ < = ≠) {} {} (35 44)", res[8].fmt(), res[9].fmt());
+    }
+    if (n == 5) {
+        printAll("\x07[F20-2] 비교(비트: ≥ > ≤ < = ≠) {} {} (21 35)", res[10].fmt(), res[11].fmt());
+    }
+    if (n == 6) {
+        printAll("\x07[F20-3] 곱셈 64×64·32×32 {} {} (340282366920938463426481119284349108225 6500000000000000000000000000000)", res[12].fmt(), res[13].fmt());
+    }
+    if (n == 7) {
+        printAll("\x07[F20-3] 곱셈 64×64·32×32 {} {} (1505644448203263502622459810266844400 18446744065119617025)", res[14].fmt(), res[15].fmt());
+    }
+    if (n == 8) {
+        printAll("\x07[F20-4] 곱셈 128비트·상수 {} {} (1 340282366920938463463374607431768211455)", res[16].fmt(), res[17].fmt());
+    }
+    if (n == 9) {
+        printAll("\x07[F20-4] 곱셈 128비트·상수 {} {} (335048531687535357337265867131914354688 6500000000000000000000000000000)", res[18].fmt(), res[19].fmt());
+    }
+    if (n == 10) {
+        printAll("\x07[F20-5] 나눗셈 32·64비트 제수 {} {} (34028236692093846346337460743176821145 5)", res[20].fmt(), res[21].fmt());
+    }
+    if (n == 11) {
+        printAll("\x07[F20-5] 나눗셈 32·64비트 제수 {} {} (18446744073709551617 0)", res[22].fmt(), res[23].fmt());
+    }
+    if (n == 12) {
+        printAll("\x07[F20-5] 나눗셈 32·64비트 제수 {} {} (2075258708292324583912 40992764608284833)", res[24].fmt(), res[25].fmt());
+    }
+    if (n == 13) {
+        printAll("\x07[F20-5] 나눗셈 32·64비트 제수 {} {} (158456324954741698926609432560 15)", res[26].fmt(), res[27].fmt());
+    }
+    if (n == 14) {
+        printAll("\x07[F20-6] 나눗셈 128비트 제수·0 {} {} (1073741823 1180591620716337561604)", res[28].fmt(), res[29].fmt());
+    }
+    if (n == 15) {
+        printAll("\x07[F20-6] 나눗셈 128비트 제수·0 {} {} (1 170141183460469231731687303715884105726)", res[30].fmt(), res[31].fmt());
+    }
+    if (n == 16) {
+        printAll("\x07[F20-6] 나눗셈 128비트 제수·0 {} {} (0 18446744073709551617)", res[32].fmt(), res[33].fmt());
+    }
+    if (n == 17) {
+        printAll("\x07[F20-6] 나눗셈 128비트 제수·0 {} {} (340282366920938463463374607431768211455 123)", res[34].fmt(), res[35].fmt());
+    }
+    if (n == 18) {
+        printAll("\x07[F20-7] 상수 나눗셈 {} {} (68056473384187692692674921486353642 1455)", res[36].fmt(), res[37].fmt());
+    }
+    if (n == 19) {
+        printAll("\x07[F20-7] 상수 나눗셈 {} {} (12676506002282294014967032177 21)", res[38].fmt(), res[39].fmt());
+    }
+    if (n == 20) {
+        printAll("\x07[F20-7] 상수 나눗셈 {} {} (113427455640312821154458202477256070485 0)", res[40].fmt(), res[41].fmt());
+    }
+    if (n == 21) {
+        printAll("\x07[F20-8] 64·32비트로 내리기 {} {} (18446744073709551615 5)", res[42].fmt(), res[43].fmt());
+    }
+    if (n == 22) {
+        printAll("\x07[F20-8] 64·32비트로 내리기 {} {} (4294967295 5)", res[44].fmt(), res[45].fmt());
+    }
+    if (n == 23) {
+        printAll("\x07[F20-9] 점검 {} / {} (46 / 46) — 두 수가 같으면 통과", okCount, total);
+    }
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        run_tests();
+        printAll("\x07[F20] eudext.i128 인게임 점검 — 약 1초마다 [F20-1]~[F20-9] 24줄");
+    }
+    const n = frame % 648;
+    if (n % 24 == 2) {
+        show(n / 24);
+    }
+}

@@ -1,0 +1,225 @@
+// eudext.bullet 3단계(CtrigAsm 28장 스프라이트)·eudext.cgrp 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 F21-* 항목
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/sprite_ingame.eds --work <작업 폴더>
+// 혼자(P1) 연다. eds 가 [unlimiter] 를 켠다(CtrigAsm 가이드북: 28장 권장, CGRP 필수). 줄머리 [F21-번호] 가 체크리스트 항목이다.
+// 화면 줄 사진 + 눈으로 본 것(점·스톰·레이스·스캔·리콜 모양이 보였는지, 움직였는지, 사라졌는지)을 알려 주면 된다.
+// 기준 맵(testing/base.scx): 128×128(4096 픽셀), P1 맵 리빌러 64(시야 전체). 로케이션 26 "Location 0" = 총알 로케이션,
+// 27 "CLoc" = 마린을 놓는 자리, 25 = 점 (3413, 3413) = 리콜 아비터를 따로 만드는 자리.
+//
+// 실제 CGRP 파일 확인(F21-7, 필수): CS_Photo.exe 로 만든 .cgrp 한 개를 sprite_user.cgrp 라는 이름으로
+//   - build.py 로 빌드하면 --work 폴더에, euddraft 로 이 eds 를 직접 열면 이 eds 폴더(euddraft 작업 폴더)에 두거나,
+//   - 환경 변수 EUDEXT_CGRP_DIR 에 그 파일이 있는 폴더를 적고 빌드한다.
+// 파일이 없으면 [F21-7] 은 "파일 없음" 줄만 뜬다. 파일을 읽지 못하면(형식이 다름) 빌드가 오류 메시지로 멈춘다 — 그 메시지를 알려 준다.
+import eudext.bullet as bullet;
+import eudext.dbg as dbg;
+import eudext.cgrp as cgrp;
+import eudext.units as units;
+import eudext.datpatch as dat;
+
+// 가이드북 예제 29-4 의 점 종류: 203(반공중 트랩) → 무기 2 → flingy 147 → 스프라이트 231 → 이미지 233(뉴크 점), 화면 출력 0(빨강)
+const kDot = bullet.CtrigKind(unit=203, weapon=2, flingy=147, sprite=231, image=233, iscript=233, color=0, half_air=True);
+// 예제 28-1 의 스톰 종류: 19 → 무기 0 → flingy 162 → 스프라이트 356 → 이미지 380, iscript 236
+const kStorm = bullet.CtrigKind(unit=19, weapon=0, flingy=162, sprite=356, image=380, iscript=236,
+    splash=list(10, 25, 50), upgrade=7);
+// 예제 28-1 의 튕기는 스프라이트: 20 → 무기 1 → 스프라이트 344 → 이미지 360 (flingy 는 147 이 kDot 과 겹쳐 164 로 바꿈)
+const kBounce = bullet.CtrigKind(unit=20, weapon=1, flingy=164, sprite=344, image=360, iscript=233, upgrade=7);
+kDot.install();
+kStorm.install();
+kBounce.install();
+bullet.scan_init();
+dat.unit(8).set(unitBoundsLT=0x10001, unitBoundsRB=0x10001);     // 예제 28-1: 레이스(표시용)·아비터 크기 1
+dat.unit(86).set(unitBoundsLT=0x10001, unitBoundsRB=0x10001);
+dat.tech(21).set(energyCost=0);                                  // 리콜 마나 0 (가이드북 권장, 예제 28-1)
+bullet.setup(loc="Location 0");
+
+// F21-6: 합성 그림 (R/G/B = 기본색, r = 빨강 + 적색 명암 1, k = 빨강 + 흑색 명암 2, # = Fill 만 → kDot 색)
+const pic = cgrp.CGRP.from_rows(list(
+    "RRRRRRRRGGGGGGGGBBBBBBBB",
+    "R......RG......GB......B",
+    "R.rrrr.RG.####.GB.kkkk.B",
+    "R.rrrr.RG.####.GB.kkkk.B",
+    "R......RG......GB......B",
+    "RRRRRRRRGGGGGGGGBBBBBBBB"), dot=6);
+const painter = cgrp.CGRPPainter(pic.layers(mode="stack", height=5), kDot, P1, per_frame=12, delay=4);
+// F21-7: 사용자가 준 실제 CGRP (없으면 빈 그림)
+const userCg = cgrp.CGRP.load("sprite_user.cgrp", missing_ok=True);
+const userPainter = cgrp.CGRPPainter(userCg, kDot, P1, per_frame=48, delay=4);
+
+const cap = units.Capture();
+var frame, dotMade, dotZero, bounceE, stormE, stormE2, usE, usMoving, recE, recE2, marine, fillMade, fullZero;
+var paintDone, userDone;
+
+function f1() {                                 // [필수] F21-1: 영구 스프라이트 점 16개 (높이 0~15)
+    for (var i = 0; i < 16; i++) {
+        const e = bullet.perma_sprite(kDot, P1, 400 + i * 24, 480, 0, speed=0, height=i);
+        if (e == 0) { dotZero += 1; } else { dotMade += 1; }
+    }
+    printAll("\x07[F21-1] (400,480)~(760,480) 에 빨간 점 16개(높이 0~15): 만듦 {}(16) 실패 {}(0) — 점이 보이고 움직이지 않으면 OK",
+        dotMade, dotZero);
+}
+
+function f1b() {                                // [필수] F21-1: 속도 있는 영구 스프라이트 (투사 방식 7 튕김)
+    bounceE = bullet.perma_sprite(kBounce, P1, 1000, 480, 64, speed=1280);
+    printAll("[F21-1] (1000,480) 에 속도 1280 스프라이트 epd={}(0 아님) — 어떻게 움직이는지(튕기는지, 멈추는지) 알려 주세요", bounceE);
+}
+
+function f1check() {
+    printAll("\x07[F21-1] 20초 뒤: 빨간 점 16개가 아직 그대로 보이면 OK(영구). 높이 0~15 에 따라 겹침 순서가 다른지도");
+}
+
+function f2() {                                 // [필수] F21-2: 스톰 (투사 방식 3, 이미지 380 iscript 236)
+    stormE = bullet.storm(kStorm, P1, 1200, 1000, 0, 380, 30);
+    printAll("\x07[F21-2] (1200,1000) 에 스톰 epd={}(0 아님), 수명 30 — 스톰 모양이 잠깐 보였다 사라지면 OK", stormE);
+}
+
+function f2b() {                                // F21-2: 변수 이미지·수명·높이
+    var img = 380;
+    var t = 60;
+    stormE2 = bullet.storm(kStorm, P1, 1500, 1000, 0, img, t, height=4);
+    printAll("[F21-2] (1500,1000) 에 스톰(변수 인자) epd={}(0 아님), 수명 60 — 앞의 것보다 오래 보이면 OK", stormE2);
+}
+
+function f3() {                                 // [필수] F21-3: 표시용 유닛
+    usE = bullet.unit_sprite(P1, 8, 2000, 1000, height=0, time=96);
+    bullet.unit_sprite(P1, 8, 2100, 1000, track=False);
+    const dc = dwread_epd(usE + 55);
+    printAll("\x07[F21-3] (2000,1000) 레이스 epd={} +0xDC={}(0x100 비트 켜짐) +0xE4={}(0) 수명 96 — 8초쯤 뒤 사라지고 드래그로 선택되지 않으면 OK. (2100,1000) 레이스는 보통 유닛(선택 됨, 남음)",
+        usE, dc & 0x100, dwread_epd(usE + 57));
+}
+
+function f3move() {                             // F21-3: 매 프레임 수명 2 로 다시 만들기 → 움직이는 그림 (예제 29-9 C 방식)
+    bullet.unit_sprite(P1, 8, 1700 + frame * 4, 1300, height=5, time=2);
+    usMoving += 1;
+}
+
+function f4() {                                 // [필수] F21-4: 스캔 스프라이트 (높이 4 고정, 칸 연산 없음)
+    bullet.set_scan_image(391);
+    bullet.scan_sprite(P1, 2600, 1000);
+    bullet.scan_sprite(P1, 2800, 1000, count=3);
+    bullet.scan_sprite(P1, 3000, 1000, remove=False);
+    printAll("\x07[F21-4] 스캔 이미지 391 을 (2600,1000)·(2800,1000)×3·(3000,1000 스캐너 남김) 에 — 모양이 보이는가, 스캐너 유닛이 남는가(마지막만 남아야 함)");
+}
+
+function placeMarine() {                        // F21-5 준비: (3200,1600) 에 P1 마린
+    setloc(27, 3200, 1600);
+    cap.begin();
+    CreateUnit(1, "Terran Marine", 27, P1);
+    cap.end();
+    if (cap.ok) { marine = cap.epd; }
+}
+
+function f5() {                                 // [필수] F21-5: 리콜 스프라이트 (아비터 86, 리콜 이미지 379)
+    DoActions(bullet.recall_image_actions(379));
+    recE = bullet.recall_sprite(P1, 86, 3000, 400);
+    recE2 = bullet.recall_sprite(P1, 86, 3200, 1600, loc=25);
+    printAll("\x07[F21-5] 리콜: (3000,400) 제자리 아비터 epd={}, (3200,1600) 목표·아비터는 (3413,3413) epd={} — 두 곳에 리콜 모양이 뜨면 OK",
+        recE, recE2);
+}
+
+function f5check() {
+    if (marine != 0) {
+        printAll("[F21-5] 3초 뒤: (3200,1600) 마린 위치 = ({},{}) — (3413,3413) 근처로 옮겨졌으면 '끌려옴'(R4a A.8 추측 확인)",
+            wread_epd(marine + 10, 0), wread_epd(marine + 10, 2));
+    }
+}
+
+function f6check() {                            // [필수] F21-6: 합성 CGRP 그림
+    if (painter.done()) { paintDone = 1; }
+    printAll("\x07[F21-6] (400,2000) 합성 그림: 다 그림={}(1) 점 {}({}) 실패 {}(0) — 빨강·초록·파랑 네모 3개, 왼쪽 안은 붉은 겹칩, 가운데 안은 빨강, 오른쪽 안은 어두운 겹침이면 OK",
+        paintDone, painter.drawn, painter.total, painter.dropped);
+}
+
+function f7() {                                 // [필수] F21-7: 실제 CGRP 파일
+    printAll(userCg.summary());
+    printAll("\x07[F21-7] 위 줄 = 실제 CGRP 헤더 풀이 ('파일 없음' 이면 sprite_user.cgrp 를 두고 다시 빌드). 이어서 (2000,2000) 에 그린다");
+}
+
+function f7check() {
+    if (userPainter.done()) { userDone = 1; }
+    printAll("\x07[F21-7] 실제 CGRP 그림: 다 그림={}(1) 점 {}({}) 실패 {}(0) — CS_Photo 에 넣은 그림과 같은 모양·색이면 OK (사진 부탁)",
+        userDone, userPainter.drawn, userPainter.total, userPainter.dropped);
+}
+
+function f9() {                                 // F21-9: 유닛 칸이 가득일 때 0 을 돌려주고 튕기지 않는가
+    fillMade = 0;
+    while (fillMade < 1700) {
+        cap.begin();
+        CreateUnit(1, "Map Revealer", "Anywhere", P2);
+        cap.end();
+        if (cap.failed) { break; }
+        fillMade += 1;
+    }
+    const a = bullet.storm(kStorm, P1, 1000, 3000, 0, 380, 30);
+    const b = bullet.perma_sprite(kDot, P1, 1000, 3000, 0);
+    const c = bullet.unit_sprite(P1, 8, 1000, 3000, time=10);
+    const d = bullet.recall_sprite(P1, 86, 1000, 3000);
+    bullet.scan_sprite(P1, 1000, 3000);
+    bullet.unit_sprite(P1, 8, 1000, 3000, track=False);
+    if (a == 0 && b == 0 && c == 0 && d == 0) { fullZero = 1; }
+    printAll("\x07[F21-9] 유닛 칸 가득(P2 리빌러 {}개): storm={}(0) perma={}(0) unit_sprite={}(0) recall={}(0) — 튕기지 않고 이 줄이 보이면 OK",
+        fillMade, a, b, c, d);
+    RemoveUnit("Map Revealer", P2);
+}
+
+function report() {                       // 브리지 판정 (F21-1~7·9 — 위험 세션이라 값만 남기고 사람이 본다)
+    dbg.mark("m18.dotMade", dotMade);
+    dbg.mark("m18.dotZero", dotZero);
+    dbg.mark("m18.bounceE", bounceE);
+    dbg.mark("m18.stormE", stormE);
+    dbg.mark("m18.stormE2", stormE2);
+    dbg.mark("m18.usE", usE);
+    dbg.mark("m18.usMoving", usMoving);
+    dbg.mark("m18.recE", recE);
+    dbg.mark("m18.recE2", recE2);
+    dbg.mark("m18.paintDone", paintDone);
+    dbg.mark("m18.drawn", painter.drawn);
+    dbg.mark("m18.dropped", painter.dropped);
+    dbg.mark("m18.userDone", userDone);
+    dbg.mark("m18.userDrawn", userPainter.drawn);
+    dbg.mark("m18.userTotal", userPainter.total);
+    dbg.mark("m18.fillMade", fillMade);
+    dbg.mark("m18.fullZero", fullZero);
+    if (marine != 0) {
+        dbg.mark("m18.marineX", wread_epd(marine + 10, 0));
+        dbg.mark("m18.marineY", wread_epd(marine + 10, 2));
+    }
+    if (usE != 0) {
+        dbg.mark("m18.usDC", dwread_epd(usE + 55) & 0x100);
+        dbg.mark("m18.usE4", dwread_epd(usE + 57));
+    }
+    dbg.mark("m18.frame", frame);
+    dbg.mark("done");
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    dbg.mark("m18.stage", frame);          // 어디까지 갔는지 (위험 맵 — 멈추면 마지막 단계가 남는다)
+    painter.tick();
+    userPainter.tick();
+    if (frame == 1) {
+        printAll("\x07[F21] eudext 28장 스프라이트·CGRP 확인 맵: 약 60초 동안 차례로 만듭니다. [필수] 줄과 눈으로 본 것을 알려 주세요");
+    }
+    if (frame == 12) { f7(); }
+    if (frame == 24) { f1(); }
+    if (frame == 30) { f1b(); }
+    if (frame == 48) { f2(); }
+    if (frame == 72) { f2b(); }
+    if (frame == 96) { f3(); }
+    if (frame >= 96 && frame <= 156) { f3move(); }
+    if (frame == 168) { f4(); }
+    if (frame == 180) { placeMarine(); }
+    if (frame == 192) { f5(); }
+    if (frame == 228) { f5check(); }
+    if (frame == 240) {
+        painter.start(400, 2000);
+        printAll("[F21-6] (400,2000) 에 합성 CGRP 그림을 한 프레임 12점씩 그립니다 (색이 바뀔 때 4프레임 쉼)");
+    }
+    if (frame == 264) { f1check(); }
+    if (frame == 360) { f6check(); }
+    if (frame == 380) { userPainter.start(2000, 2000); }
+    if (frame == 600) { f7check(); }
+    if (frame == 640) { f9(); }
+    if (frame == 700) {
+        report();
+        printAll("\x07[F21] 끝. 사진과 함께 [F21-1]~[F21-9] 결과를 알려 주세요");
+    }
+}

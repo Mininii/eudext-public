@@ -1,0 +1,58 @@
+// eudext.pool 예제 — DESIGN 4.11 / docs/spec/S2_pool.md 6.10 의 모양
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/pool_example.eds --work <작업 폴더>
+//
+// 필드 순서 = 옛 줄 번호 (aliases 를 안 주면 0부터): 0 unit, 1 x, 2 y, 3 owner, 4 timer, 5 started, 6 phase, 7 work, 8 done
+// `!` = readonly (alloc 때만 쓰고 되쓰지 않는 필드)
+import eudext.pool as pool;
+
+const guns = pool.Pool("Gun", "unit! x! y! owner timer started phase work done", capacity=8);
+const g = guns.cur;                              // 레지스터 보기는 const 로 (var 에 담지 않는다)
+const kinds = EUDArray(list(131, 132, 131, 132, 131, 132, 131, 999, 131));   // 초기값 배열 (트리거 없음)
+
+var frame, sent, failed, visits, hatch, unknownSeen, started, lastIndex, handleOk;
+
+function gunSend(u, x, y, owner) {
+    const h = guns.alloc(unit=u, x=x, y=y, owner=owner);    // 키워드 인자 그대로
+    if (h == 0) {                                         // 넘침: guns.dropped += 1, 원본 문구 + Buzz ×3
+        failed += 1;
+        return;
+    }
+    sent += 1;
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 1) {
+        for (var i = 0 ; i < 9 ; i++) {
+            gunSend(kinds[i], i * 32, i * 64, 7);            // 9번째는 용량 8 을 넘는다
+        }
+    }
+    foreach (_ : guns.each()) {                       // 살아 있는 것만. 이 프레임 앞에서 잡은 것도 돈다
+        visits += 1;
+        if (guns.Line(5, Exactly, 0)) {                   // 옛 줄 번호 별칭: 첫 방문
+            guns.SetLine(5, SetTo, 1);
+            started += 1;
+        }
+        switch (g.unit) {                                 // 유형별 처리 (EUDSwitch)
+            case 131:
+                hatch += 1;
+                break;
+            case 132:
+                break;
+            default:
+                unknownSeen += 1;
+                guns.free_current();                      // 원본 Gun_DoSuspend = 반납 (일시 정지가 아님)
+                continue;
+        }
+        g.timer += 16;                                    // -= 는 wrap, 포화는 g.isub_sat("timer", v)
+        guns.SetLine(7, Subtract, 1);                     // 별칭 Subtract 는 원본처럼 포화 (0 에서 멈춤)
+        if (g.timer >= 48) { g.done = 1; }
+        if (g.done >= 1) { guns.free_current(); continue; }
+    }
+    if (frame == 2) {
+        foreach (g2, h : guns.each(handle=true)) {       // 두 번째 호출 자리: (보기, 핸들)
+            lastIndex = guns.index_of(h);
+            if (h == g2.handle) { handleOk += 1; }
+        }
+    }
+}

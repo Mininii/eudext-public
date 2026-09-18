@@ -1,0 +1,52 @@
+// eudext.mathx 예제 (epScript) — CtrigAsm 과 같은 값의 lengthdir·회전·atan2·부호 나눗셈 (DESIGN 4.5)
+//
+// 불러오기: import eudext.mathx as mx;   (eds 맨 앞에 eudext 부트 플러그인 — mathx_example.eds)
+// 번역: mx.lengthdir(…) → mx.f_lengthdir(…)   (모듈 함수에는 f_ 가 붙는다. mathx 는 f_ 이름으로 정의돼 있다)
+//
+// 주의
+// - 각도 기준은 CtrigAsm 과 같다: 0 = +x(오른쪽), 각이 늘면 화면에서 시계 방향. SC 256 방향은 mx.atan2_sc / mx.to_dir256.
+// - 여러 값 반환은 `a, b = mx.lengthdir(r, ang);` (전역 var 에 대입) 또는 `const c, s = …;` (함수 안).
+// - 전역에서 Rotator 를 만들 때는 mx.Rotator() (변수 각, 처음 0, 트리거 없음) 또는 상수 각 mx.Rotator(30).
+//   변수로 만들면 그 자리에서 대입 트리거가 생기므로 함수 안에서 rot.set(각) 을 쓴다.
+// - 상수만 넣으면 컴파일 시점에 계산된다(파이썬 정수, 트리거 0).
+// - 0 나눗셈 정책: mx.sdiv(a, b) 는 eudplib 과 같고, mx.sdiv(a, b, "ctrig") 는 CtrigAsm f_iDiv 와 같다.
+import eudext.mathx as mx;
+
+const spin = mx.Rotator();          // 변수 각 회전 (각은 spin.set 으로)
+const tilt = mx.Rotator(30);        // 상수 각 회전
+
+var frame;                          // 사이클 수
+var ang;                            // 각 (−20 에서 시작해 사이클마다 7씩 — 음수·360 초과도 그대로 넣는다)
+var cx, cy;                         // lengthdir(100, ang)
+var px, py;                         // (40, −16) 을 ang 만큼 돌린 점 (CA_Rotate 와 같은 항별 자르기)
+var tx, ty;                         // (40, −16) 을 30도 돌린 점 (상수 → 컴파일 시점 값)
+var sx, sy;                         // (px, py) 를 30도 더 돌린 점 (상수 각 + 변수 점)
+var back;                           // atan2 로 되돌린 각 (0 ~ 359)
+var face;                           // 그 각의 SC 256 방향
+var face2;                          // atan2_sc 로 바로 구한 SC 방향
+var q, m, qc;                       // 부호 나눗셈: ang ÷ 7 의 몫·나머지, ang ÷ 0 (CtrigAsm 정책)
+var root, e, scaled;                // √(cx²+cy²), log₂ frame, px·150/100
+var X, Y, Z;                        // 3D 회전 (XY = ang, YZ = 45, ZX 없음)
+
+function step() {
+    ang = frame * 7 - 20;
+    cx, cy = mx.lengthdir(100, ang);
+    spin.set(ang);
+    px, py = spin(40, -16);
+    tx, ty = tilt(40, -16);
+    sx, sy = tilt(px, py);
+    back = mx.atan2(cy, cx);
+    face = mx.to_dir256(back);
+    face2 = mx.atan2_sc(cy, cx);
+    q, m = mx.sdivmod(ang, 7);
+    qc = mx.sdiv(ang, 0, "ctrig");
+    root = mx.isqrt(cx * cx + cy * cy);
+    e = mx.ilog2(frame);
+    scaled = mx.ratio(px, 150, 100);
+    X, Y, Z = mx.rotate3d(px, py, ang, 45, None);
+}
+
+function afterTriggerExec() {
+    step();
+    frame += 1;
+}

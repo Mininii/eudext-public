@@ -1,0 +1,24 @@
+:: 04 datpatch 계측판 빌드 설정 (B15-1·3·4·10) — 원래 04 맵(datpatch_example)은 화면 줄이 없었다(발견 ①)
+:: 기준 맵은 testing/auto_all_base.scx (P1 파이어뱃 한 기 — B15-3 의 "미리 놓인 유닛")
+:: 빌드: python eudext/tools/ingame_maps.py --out <폴더> datpatch
+
+[main]
+input : ../testing/auto_all_base.scx
+output : 04_datpatch_check.scx
+
+[../boot.py]
+EudextRoot : ../..
+Preload : dbg, datpatch
+
+[dbg_setup.py]
+WatchSlots : 64
+Probes : 128
+
+[datpatch_ingame.eps]
+
+:: [eudTurbo] = euddraft 0.11 번들 플러그인 — 트리거를 매 프레임 돌게 한다 (인게임 G-1)
+
+[eudTurbo]
+
+[freeze]
+freeze : 0

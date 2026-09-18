@@ -1,0 +1,22 @@
+// eudext.textfx 사용 예 (epScript) — 채팅 줄을 글자 셀로 바꿔 버퍼에 담는다.
+// 번역·에뮬레이터·euddraft 빌드 시험: tests/t_textfx.py. 인게임 확인은 examples/chat_ingame.eps(타자기가 이 스캐너를 쓴다).
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/textfx_example.eds --work <작업 폴더>
+import eudext.textfx as tfx;
+import eudext.local as local;
+
+const buf = Db(4 * 60);                          // 셀 버퍼 (셀 하나 = dword 하나)
+const GA = tfx.cell_const("가");                  // eudplib 배치 셀 상수 0x80B0EA0D
+const OLD_A7 = tfx.cell_const_ctrig("a", 7);      // CtrigAsm 배치 (옛 데이터 비교용) 0x610D0D07
+const BLANK = tfx.BLANK;                          // 0x0D0D0D0D
+var cells, oddCells, firstIsGa, secondCell, oldConst;
+
+function afterTriggerExec() {
+    local.begin();                                // 채팅 버퍼는 PC 마다 다른 로컬 값 → 표시 전용 구역 안에서만
+    cells = tfx.scan_cells(0x640B60, EPD(buf), 52);                   // 줄 0, CtrigAsm 묶음 규칙(기본)
+    // 줄 1(홀수 slot): 원문이 dword +2 바이트에서 시작 → EPD 판에 src_sub=2, eudplib 묶음 규칙
+    oddCells = tfx.scan_cells_epd(EPD(0x640B60) + 54, EPD(buf) + 30, 20, src_sub=2, rule="eudplib");
+    if (dwread_epd(EPD(buf)) == GA) { firstIsGa = 1; } else { firstIsGa = 0; }
+    secondCell = dwread_epd(EPD(buf) + 1);
+    local.end();
+    oldConst = OLD_A7;
+}

@@ -1,0 +1,139 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "23_misc_obs_check",
+ "title": "관전자 채팅·방장·와이드 (F19-1·1b·3·6)",
+ "timeout_s": 600,
+ "items": [
+  {
+   "kind": "group",
+   "id": "F19-1",
+   "items": [
+    {
+     "kind": "hdr",
+     "field": "local_player",
+     "max": 131
+    },
+    {
+     "kind": "mark",
+     "name": "m23.chat_mode",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m23.mode_changes",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "hdr local_player (관전자 PC 마다 128~131)",
+     "watch_mem 0x68C144 (채팅 대상 모드, 관전자 PC)"
+    ],
+    "expect": "관전자 2~4번 PC 에서 END/HOME/INSERT 로 모드가 두 번 이상 바뀜(0x68C144 값 변화 자동), 실제 채팅 수신 대상은 사람",
+    "done_marker": "-",
+    "category": "MULTI",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "23 misc_obs_check",
+    "bundle": "M1_multi",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "0x68C144 dbg.watch_mem"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F19-1b",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m23.host",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m23.host (host_player())",
+     "watch_mem 0x6D0FDC"
+    ],
+    "expect": "모든 PC·싱글·리플레이에서 같은 방장 번호",
+    "done_marker": "-",
+    "category": "MULTI",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "(확인 맵 없음)",
+    "bundle": "M1_multi (싱글 값은 auto_all phase 12 에서 참고로 기록)",
+    "notes": "싱글 값은 auto_all phase 12 에서 참고로 기록",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "host_player 값을 dbg.watch 하는 코드 추가"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F19-3",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m23.wide",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m23.screen",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m23.wide (is_widescreen 결과)",
+     "watch_mem 0x62848C (화면 위치 — 판정 뒤 복귀)"
+    ],
+    "expect": "4:3 에서 0, 와이드에서 1, 판정 뒤 화면 위치가 원래대로",
+    "done_marker": "-",
+    "category": "AUTO_ASSIST",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "(확인 맵 없음)",
+    "bundle": "별도: 해상도 두 가지로 여는 맵",
+    "notes": "사람 몫: 해상도 두 가지로 열기",
+    "extra": [
+     "EXTERNAL"
+    ],
+    "instrument": "is_widescreen 확인 코드 추가"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F19-6",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m23.chat_mode",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch_mem 0x68C144"
+    ],
+    "expect": "0x68C144 = 2/3/5 일 때 실제 채팅이 가는 곳(특히 3 '대상없음')",
+    "done_marker": "-",
+    "category": "MULTI",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "23 misc_obs_check",
+    "bundle": "M1_multi",
+    "instrument": "없음"
+   }
+  }
+ ],
+ "stall_s": 30
+}

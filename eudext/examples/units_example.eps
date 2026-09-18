@@ -1,0 +1,52 @@
+// eudext.units 예제 (epScript) — 방금 만든 유닛, 유닛별 저장, 새 유닛·죽는 유닛 순회
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/units_example.eds --work <작업 폴더>
+//
+// epScript 에는 with 문이 없으므로 Capture 는 begin()/end() 로 감싼다.
+// 모듈 함수는 f_ 가 붙어 번역된다: units.create(…) → units.f_create(…), units.new_units() → units.f_new_units().
+// 대문자 이름(units.Capture, units.UnitData, units.CUnit)은 그대로다. 파이썬 객체는 const 로 묶는다.
+import eudext.units as units;
+
+const data = units.UnitData(hp2="dword", stack="word", alive="byte");
+const u = units.Capture();
+var made, lastIndex, newCount, deadCount, hpOut, rowHits, failCount, timerOut;
+
+function makeOne() {
+    u.begin();
+    data.clear(u.index);                        // 생성 전에 그 칸을 초기화 (index_before = on_create 훅)
+    CreateUnit(1, "Terran Marine", "Anywhere", P8);
+    u.end();
+    if (u.ok) {
+        data.hp2[u.index] += 5;                 // epScript += → iadditem (wrap)
+        data.stack[u.index] = 70000;            // word 필드: 아래 16비트만 남는다 → 4464
+        made += 1;
+        lastIndex = u.index;
+        const cu = units.CUnit(u.epd);          // ok 를 확인한 뒤에만 epd 를 쓴다
+        cu.removeTimer = 0;
+    } else {
+        failCount += 1;
+    }
+}
+
+function afterTriggerExec() {
+    makeOne();
+    const c = units.create(1, "Terran Marine", "Anywhere", P8, on_create=data);
+    if (c.ok) {
+        data.hp2[c.index] -= 1;                 // wrap 뺄셈 (0 - 1 = 0xFFFFFFFF)
+    }
+    foreach (nu : units.new_units()) {          // 새 유닛마다 한 번: 살아 있음 표식
+        data.alive[nu.index] = 1;
+        newCount += 1;
+    }
+    const row = data.of(u.epd);                 // EPD → 칸 번호 변환 뒤 행 뷰
+    row.stack += 1;
+    if (row.stack == 4465) {
+        rowHits += 1;
+    }
+    hpOut = data.hp2[lastIndex];
+    if (u.ok) {
+        timerOut = units.CUnit(u.epd).removeTimer;   // 빈 칸이 없으면 epd = 0 (P1 데스 칸) — ok 뒤에만 쓴다
+    }
+    foreach (d : units.dying(data, key="alive")) {   // 죽는 중이고 표식이 있는 칸마다 한 번, 끝나면 행 초기화
+        deadCount += 1;
+    }
+}

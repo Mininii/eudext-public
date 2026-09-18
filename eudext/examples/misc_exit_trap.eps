@@ -1,0 +1,32 @@
+// eudext.misc.unsafe_exit_trap 확인 맵 — !!! 실험(최상 위험) 기능 !!!  (docs/INGAME_CHECKLIST.md 의 F19-4)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/misc_exit_trap.eds --work <작업 폴더>
+//
+// 이 맵은 "대상 PC(P1)가 게임을 나가면 스타크래프트가 멈추는가(크래시)" 를 확인한다 (ExitDrop 원리, R4b D4).
+// unsafe_exit_trap 은 로컬 트리거 목록 포인터를 자기 순환으로 바꾼다 — SC 정리 루틴 동작은 **추측**이다.
+// 목록 주인(list_owner)을 잘못 고르면 다른 플레이어나 전원이 멈출 수 있다.
+//
+//  ** 반드시 혼자 또는 버려도 되는 방에서 연다. 확인 뒤 스타를 강제 종료해야 할 수 있다. **
+//
+// 확인 (줄머리 [F19-4]):
+//   1) 맵이 켜지면 경고 문구가 나온다.
+//   2) P1 이 메뉴 → 게임 나가기(또는 패배)로 떠날 때 스타가 멈추면(크래시) exit_trap 이 동작하는 것이다.
+//   3) 다른 PC 는 멈추지 않아야 한다(list_owner=P8 컴퓨터 목록에 심으므로).
+import eudext.misc as misc;
+import eudext.dbg as dbg;
+
+var frame;
+
+function afterTriggerExec() {
+    frame += 1;
+    dbg.mark("m17.stage", frame);          // 어디까지 갔는지 (P1 이 나간 뒤 P2 PC 의 seq 가 계속 도는가 — F19-4)
+    if (frame == 24) {
+        DisplayTextAll("\x08[경고] 이 맵은 실험 기능(unsafe_exit_trap) 확인용입니다 — 나가면 멈칠 수 있습니다");
+        setcurpl2cpcache();
+    }
+    if (frame == 72) {
+        DisplayTextAll("\x08[F19-4] P1 이 게임을 떠날 때 스타가 멈추면(크래시) 정상입니다. 다른 PC 는 멈추면 안 됩니다");
+        setcurpl2cpcache();
+    }
+    // 매 프레임(메인 루프 끝) 부른다 — 부르지 않으면 다음 틱에 풀린다.
+    misc.unsafe_exit_trap(P1, enable=true);   // 대상 = P1, 목록 주인 = P8(컴퓨터) 기본
+}

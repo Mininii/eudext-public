@@ -1,0 +1,4175 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "00_auto_all",
+ "title": "eudext 자동 점검 통합 맵 (안전한 항목 전부 — 약 4분 30초)",
+ "done": [
+  "aa.done"
+ ],
+ "timeout_s": 600,
+ "timeout_cycles": 8000,
+ "stall_s": 20,
+ "settle_cycles": 2,
+ "checklist": [
+  {
+   "row": "00",
+   "section": "확인 순서"
+  }
+ ],
+ "suites": [
+  {
+   "name": "units",
+   "phase": 1,
+   "title": "유닛 생성·칸 번호·새 유닛 순회·죽음 (B10)",
+   "timeout_s": 60,
+   "timeout_cycles": 200,
+   "items": [
+    {
+     "kind": "group",
+     "id": "B10-1",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.T4.ok1",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T4.ok2",
+       "equals": 0
+      },
+      {
+       "kind": "check",
+       "name": "units.B10-1.head"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.t4_ok1, t4_ok2, t4_head_before, t4_head_after",
+       "watch m03.t9_fill, t9_ok, t9_ptr, t9_idx, t9_head"
+      ],
+      "expect": "(a) T4 첫 CC ok=1, 겹친 CC ok=0, 머리 전 = 후. (b) T9 마지막 ok=0 ptr=0 idx=1700 머리=1700, 채운 수 기록(한도가 1700 이 아니면 그 수)",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): (a) frame >= 4, (b) frame >= 31",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "03 units_ingame",
+      "bundle": "auto_all (a) + X_limit (b 한도)",
+      "notes": "(a) 는 auto_all phase 1 에서 자동, (b) 만 사용자가 따로 보는 X_limit 맵",
+      "risk": "(b) 유닛 한도까지 채우기 — 한 프레임 약 5만 트리거 + 유닛 1,600여 마리 생성. 멈춤·긴 렉 가능",
+      "extra": [
+       "CRASH_RISK"
+      ],
+      "instrument": "units_ingame.eps t4/t9 의 지역 값을 전역 변수로 옮겨 dbg.watch. t9(1,600여 마리 채우기)는 별도 파일로 떼어 X_limit 맵에"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B10-2",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.T1.ok",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T1.type",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T1.owner",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T1.order",
+       "min": 1
+      },
+      {
+       "kind": "check",
+       "name": "units.B10-2.idx"
+      },
+      {
+       "kind": "mark",
+       "name": "units.T1.head0",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T1.head1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T1.uniq",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T1.headdown",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.t1_ok, t1_idx, t1_head_before, t1_head_after, t1_type, t1_owner, t1_order, t1_uniq"
+      ],
+      "expect": "ok=1, idx = index(머리 전), 종류=0, 주인=0, 주문≠0, 머리 후 = 전 + 1(보통 — 다르면 기록)",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 1",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "03 units_ingame",
+      "bundle": "auto_all",
+      "instrument": "units_ingame.eps t1(): printAll 인자들을 전역 변수에 담아 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B10-3",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.T2.ok",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T2.type",
+       "equals": 3
+      },
+      {
+       "kind": "mark",
+       "name": "units.T2.subtype",
+       "equals": 4
+      },
+      {
+       "kind": "mark",
+       "name": "units.T2.headstep",
+       "equals": 2
+      },
+      {
+       "kind": "mark",
+       "name": "units.T2.subnext",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T2.subidx",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.t2_idx, t2_type, t2_sub_idx, t2_sub_type, t2_head"
+      ],
+      "expect": "종류=3, 서브 종류=4, 서브 칸 = idx+1(아니면 기록), 머리 = idx+2",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 2",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "03 units_ingame",
+      "bundle": "auto_all",
+      "instrument": "t2() 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B10-4",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.T3.ok",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T3.headstep",
+       "equals": 3
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.t3_ok, t3_first, t3_head"
+      ],
+      "expect": "ok=1, 머리 = 첫 칸 + 3",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 3",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "03 units_ingame",
+      "bundle": "auto_all",
+      "instrument": "t3() 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B10-5",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F1",
+       "min": 2,
+       "max": 68
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F2",
+       "min": 1,
+       "max": 2
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F3",
+       "equals": 3
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F4",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F5",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F6",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F7",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F8",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F9",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F10",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F11",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.B10-5.F12",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.nu[1..12] (프레임별 새 유닛 수 배열)",
+       "watch m03.nu_type[F1..F2 앞 3마리]"
+      ],
+      "expect": "F1 = 64(리빌러) + 시작 위치 유닛(0 또는 2, 기록) + 1(T1), F2 = 2(골리앗 + 터렛 — 1 이면 터렛이 새 유닛으로 안 나옴, 기록), F3 = 3, F4 = 1, F5 = 0, F6 = 1, F7 = 1, F8~F12 = 0",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 12",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "03 units_ingame",
+      "bundle": "auto_all",
+      "instrument": "units_ingame.eps 새 유닛 순회 뒤 nuArr[frame] = newCount (EUDArray 13칸) 를 dbg.watch_mem"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B10-6",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.T6.order0",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T6.hp0",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T6.sprite0",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T8.slot",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T8.killslot",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T8.front",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T10.ccdeaths",
+       "equals": 1
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.t6[F8..F20] (주문·HP·스프라이트·머리 13프레임 표)",
+       "watch m03.t8_slot, m03.kill_slot",
+       "watch m03.cc_deaths"
+      ],
+      "expect": "판정 아님 — 사실 기록: 주문이 0 이 되는 프레임, 스프라이트가 0 이 되는 프레임, 새 칸(T8)이 죽은 칸이면 '앞으로 돌려줌', 아니면 '끝'. CC(RemoveUnitAt) 죽음 알림 1회",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 45",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "03 units_ingame",
+      "bundle": "auto_all",
+      "notes": "scmodel free_to 기본값 결정용",
+      "instrument": "t6() 값을 프레임별 배열로, t8() 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B10-7",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.T8.uniq0",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T8.uniq1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T8.front",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.t8_uniq_before, t8_uniq_now, t8_slot"
+      ],
+      "expect": "새 유닛이 죽은 칸에 들어갔을 때만 고유 바이트 +1 (사실 기록)",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 24",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "03 units_ingame",
+      "bundle": "auto_all",
+      "instrument": "t8() 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B10-8",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.T7.deadF8",
+       "equals": 6
+      },
+      {
+       "kind": "mark",
+       "name": "units.T10.ccdeaths",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T10.mark",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T10.tag",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "units.T10.dead",
+       "min": 7
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.dead_seen[프레임별]",
+       "watch m03.cc_deaths, cc_mark, cc_tag"
+      ],
+      "expect": "F8 에 마린 6마리 죽음 알림 6줄(한 번씩), CC 알림 1회, mark=0 tag=0. (한도 부분) F32 뒤 합계가 프레임마다 40씩 늘다 멈춤",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 45 (한도 부분은 X_limit 에서 frame >= 80)",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "03 units_ingame",
+      "bundle": "auto_all + X_limit (limit=40 부분)",
+      "risk": "limit=40 확인은 t9 채우기 뒤라 X_limit 맵",
+      "extra": [
+       "CRASH_RISK"
+      ],
+      "instrument": "dying 루프의 deadSeen 을 프레임별 배열로 dbg.watch_mem"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B10-10",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.T11.ok",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.T11.timer",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m03.t11_timer, t11_slot"
+      ],
+      "expect": "removeTimer 쓰기 뒤 읽은 값 0",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 50",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "03 units_ingame",
+      "bundle": "auto_all",
+      "instrument": "t11 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B15-3",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "units.B15-3.found",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.B15-3.hp1",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.B15-3.hp30",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "units.B15-3.max1",
+       "equals": 25600
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m04.pre_marine_hp[프레임 1..30] (미리 놓인 마린 CUnit +0x08)"
+      ],
+      "expect": "사실 기록: 시작 직후 40/80(현재 HP 그대로) 인지 80/80 인지",
+      "done_marker": "통합 맵: aa.units.end > 0 (phase 1 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 30",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "04 datpatch_check",
+      "bundle": "auto_all (기준 맵에 파이어뱃 한 기)",
+      "extra": [
+       "EXTERNAL"
+      ],
+      "instrument": "기준 맵에 미리 놓인 마린이 없다 → 마린을 놓은 기준 맵 사본(SCMDraft 또는 chk 편집 스크립트) + 그 유닛 HP 감시"
+     }
+    }
+   ]
+  },
+  {
+   "name": "pool",
+   "phase": 2,
+   "title": "오브젝트 풀 사슬 적재·넘침·순회 (C11)",
+   "timeout_s": 60,
+   "timeout_cycles": 200,
+   "items": [
+    {
+     "kind": "group",
+     "id": "C11-1",
+     "items": [
+      {
+       "kind": "check",
+       "name": "pool.C11-1.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-1.visits",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-1.frame",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-1.bad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m08.t1ok, visits1, bad1, frame",
+       "hdr:seq 증가 + wall (2초 이상 seq 정지 = 멈춤, 블록 사라짐 = 게임 종료/튕김)"
+      ],
+      "expect": "t1ok = 1, visits1 = frame × 5, bad1 = 0 (여러 프레임 동안 유지). 맵이 멈추면 멈춤으로 기록",
+      "done_marker": "통합 맵: aa.pool.end > 0 (phase 2 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m08.frame >= 60 (1초 넘게 유지)",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "08 pool_check",
+      "bundle": "auto_all",
+      "instrument": "pool_ingame.eps afterTriggerExec 끝에서 판정 변수들 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "C11-2",
+     "items": [
+      {
+       "kind": "check",
+       "name": "pool.C11-2.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-2.count",
+       "equals": 36
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-2.dropped",
+       "equals": 1
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m08.overCount, overDropped, t2ok",
+       "chat (2프레임 ERROR 줄)"
+      ],
+      "expect": "count 36, dropped 1, t2ok 1, 버퍼에 'ERROR : Over…' 한 줄. Buzz 3번은 귀로",
+      "done_marker": "통합 맵: aa.pool.end > 0 (phase 2 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 12",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "08 pool_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "t2 값 dbg.watch (+ 채팅 스냅숏은 선택)"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "C11-3",
+     "items": [
+      {
+       "kind": "check",
+       "name": "pool.C11-3.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-3.F3",
+       "equals": 1234
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-3.F4",
+       "equals": 1234
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-3.F5",
+       "equals": 1345
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-3.F6",
+       "equals": 345
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-3.bad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m08.code3[F3..F6], t3bad, last3, t3ok"
+      ],
+      "expect": "1234, 1234, 1345, 345 / t3bad 0 / t3ok 1",
+      "done_marker": "통합 맵: aa.pool.end > 0 (phase 2 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 12",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "08 pool_check",
+      "bundle": "auto_all",
+      "instrument": "t3 의 code3 을 프레임별 배열로"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "C11-4",
+     "items": [
+      {
+       "kind": "check",
+       "name": "pool.C11-4.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-4.g1",
+       "equals": 99
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-4.g0",
+       "equals": 11
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-4.al1",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-4.al2",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-4.ix",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-4.sum",
+       "equals": 132
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m08.g1, g0, al1, al2, ix4, sum4, t4ok"
+      ],
+      "expect": "99, 11, 1, 0, 1, 132, 판정 1",
+      "done_marker": "통합 맵: aa.pool.end > 0 (phase 2 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 12",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "08 pool_check",
+      "bundle": "auto_all",
+      "instrument": "t4 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "C11-5",
+     "items": [
+      {
+       "kind": "check",
+       "name": "pool.C11-5.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-5.count",
+       "equals": 10
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m08.perfCount, t5ok",
+       "hdr:seq 증가 + wall (2초 이상 seq 정지 = 멈춤, 블록 사라짐 = 게임 종료/튕김)"
+      ],
+      "expect": "count 10, 판정 1. 끊김 체감(원본 건작 맵 대비)은 사람 — 브리지는 프레임/초만 기록",
+      "done_marker": "통합 맵: aa.pool.end > 0 (phase 2 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 12",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "08 pool_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "t5 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "C11-6",
+     "items": [
+      {
+       "kind": "check",
+       "name": "pool.C11-6.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-6.visits",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-6.bad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m08.visits6, t6bad, t6ok"
+      ],
+      "expect": "visits6 ≥ 1, t6bad 0, 판정 1",
+      "done_marker": "통합 맵: aa.pool.end > 0 (phase 2 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 12",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "08 pool_check",
+      "bundle": "auto_all",
+      "instrument": "t6 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "C11-7",
+     "items": [
+      {
+       "kind": "check",
+       "name": "pool.C11-7.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-7.visits",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "pool.C11-7.count",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m08.visits7, kinds_count, t7ok",
+       "chat (10프레임 ERROR 줄)"
+      ],
+      "expect": "방문 1, count 0, 판정 1, 'ERROR : Kind…' 한 줄. Buzz 2번은 귀로",
+      "done_marker": "통합 맵: aa.pool.end > 0 (phase 2 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 12",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "08 pool_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "t7 값 dbg.watch"
+     }
+    }
+   ]
+  },
+  {
+   "name": "switch",
+   "phase": 3,
+   "title": "스위치 표 주소 0x58DC40 (A-2)",
+   "timeout_s": 60,
+   "timeout_cycles": 300,
+   "items": [
+    {
+     "kind": "group",
+     "id": "A-2",
+     "items": [
+      {
+       "kind": "check",
+       "name": "switch.A-2.w0"
+      },
+      {
+       "kind": "check",
+       "name": "switch.A-2.w1"
+      },
+      {
+       "kind": "check",
+       "name": "switch.A-2.cond1"
+      },
+      {
+       "kind": "check",
+       "name": "switch.A-2.cond2"
+      },
+      {
+       "kind": "mark",
+       "name": "switch.A-2.w0",
+       "equals": 2147483653
+      },
+      {
+       "kind": "mark",
+       "name": "switch.A-2.w1",
+       "equals": 129
+      },
+      {
+       "kind": "mark",
+       "name": "switch.A-2.cond1",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "switch.A-2.cond2",
+       "equals": 1
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "peek 0x58DC40:2 (스위치 표, 미러)",
+       "watch m26.cond1 (Switch 1 Set 조건 참=1), m26.cond2 (Switch 2 Cleared 참=1)"
+      ],
+      "expect": "0x58DC40 = 0x80000005(2147483653), 0x58DC44 = 0x00000081(129), cond1 = cond2 = 1",
+      "done_marker": "통합 맵: aa.switch.end > 0 (phase 3 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m26.tick >= 48 (첫 판정 뒤)",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "26 switch_check",
+      "bundle": "auto_all",
+      "instrument": "switch_ingame.py: 조건 두 개 결과를 EUDVariable 로 남겨 dbg.watch. 주소 값은 계측 없이 peek(블록만 필요)"
+     }
+    }
+   ]
+  },
+  {
+   "name": "s8",
+   "phase": 4,
+   "title": "SC 마스크 Subtract·Add 식 (A-1·B15-5)",
+   "timeout_s": 60,
+   "timeout_cycles": 100,
+   "items": [
+    {
+     "kind": "group",
+     "id": "A-1",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.match",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "s8.ADDX.match",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "s8.S1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.S2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.S3",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.S4",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.S5",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.X1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.X2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.X3",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.P1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.P2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.P3",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.F1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.E1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.E2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.E3",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.E4",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.E5",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.A",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.A2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.Av",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.C",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.B",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.Bw",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.D",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.ADDX.M",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.ADDX.Mu",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "s8.ADDX.Mn",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m01.got[S1..S5, X1..X3, P1..P3, F1, E1..E5] (시험 칸 17개 원시 값)",
+       "watch m01.subx[모형 7], m01.addx[모형 3] (모형별 맞은 수)"
+      ],
+      "expect": "SUBX 에서 5/5 인 모형 하나, ADDX 에서 3/3 인 모형 하나(에뮬레이터 가정은 A2·M). 리더가 S8_subtract.md 8절 표로 got 값에서 모형을 다시 계산해 이름을 기록. 둘 다 없으면 got 17개를 그대로 기록",
+      "done_marker": "통합 맵: aa.s8.end > 0 (phase 4 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m01.done = run_tests 를 마친 프레임(첫 프레임)",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "01 S8_SubtractTest",
+      "bundle": "auto_all",
+      "instrument": "docs/spec/S8_ingame/s8_ingame.py beforeTriggerExec: run_tests() 직후 각 cell 값을 dbg.watch 로(이름은 _print_line 의 줄 이름). 이 파일은 eudext 부트 없는 순수 플러그인이라 dbg 모듈이 eudplib 만으로 import 되어야 하고, 입력 맵을 CBTest.scx 대신 testing/base.scx 로 바꿔도 되는지(메모리 칸만 씀) 확인"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B15-5",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "s8.SUBX.match",
+       "mask": 2,
+       "equals": 2
+      },
+      {
+       "kind": "mark",
+       "name": "s8.ADDX.match",
+       "mask": 1,
+       "equals": 1
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "A-1 결과"
+      ],
+      "expect": "A-1 에서 정한 마스크 Add/Subtract 식이 에뮬레이터 식과 같은가(게임 불필요)",
+      "done_marker": "통합 맵: aa.s8.end > 0 (phase 4 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): A-1 판정 뒤",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "01 S8 (A-1 결과)",
+      "bundle": "auto_all",
+      "notes": "A-1 과 같은 시험 — 따로 여는 맵 없음",
+      "instrument": "없음"
+     }
+    }
+   ]
+  },
+  {
+   "name": "datpatch",
+   "phase": 5,
+   "title": "dat 패치·피해 배율 표 (B15-1·3·10)",
+   "timeout_s": 60,
+   "timeout_cycles": 150,
+   "items": [
+    {
+     "kind": "group",
+     "id": "B15-1",
+     "items": [
+      {
+       "kind": "check",
+       "name": "datpatch.B15-1.found"
+      },
+      {
+       "kind": "mark",
+       "name": "datpatch.B15-1.start",
+       "in": [
+        5331872,
+        5331868
+       ]
+      },
+      {
+       "kind": "dwords",
+       "name": "datpatch.B15-1.dump"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m04.ratio = 0x515B80:32 (피해 배율 표 근처, 미러 밖 — 게임 시작 뒤 한 번 덤프)"
+      ],
+      "expect": "128·192·256(폭발형 × 소형·중형·대형)이 0x515BA0 에서 시작하면 0x515B88 이 맞음, 0x515B9C 에서 시작하면 0x515B84(eudplib 주석)가 맞음. 시작 주소를 기록",
+      "done_marker": "통합 맵: aa.datpatch.end > 0 (phase 5 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m04.done (frame >= 24, 시작 목록 적용 뒤)",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "04 datpatch_check",
+      "bundle": "auto_all",
+      "notes": "발견: 04 맵은 아무 줄도 띄우지 않는다",
+      "instrument": "datpatch_example.eps 에는 표시 코드가 없다(체크리스트 방법의 '표시' 가 맵에 빠져 있음 — 지금 04 맵으로는 화면으로도 못 봄). dbg.snap_mem('m04.ratio', 0x515B80, 32) 추가"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B15-10",
+     "items": [
+      {
+       "kind": "check",
+       "name": "datpatch.B15-10.req"
+      },
+      {
+       "kind": "mark",
+       "name": "datpatch.B15-10.req0",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "datpatch.B15-10.req1",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem units.dat requirementOffset 칸(유닛 0·1)"
+      ],
+      "expect": "버튼 활성 동작이 기존 맵과 같음(눈). 칸 값이 매 프레임 0 인지는 자동",
+      "done_marker": "통합 맵: aa.datpatch.end > 0 (phase 5 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 24",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "04 datpatch_check",
+      "bundle": "auto_all",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "칸 감시"
+     }
+    }
+   ]
+  },
+  {
+   "name": "i64",
+   "phase": 6,
+   "title": "64비트 포화 뺄셈·비교·10진 (C3)",
+   "timeout_s": 60,
+   "timeout_cycles": 100,
+   "items": [
+    {
+     "kind": "group",
+     "id": "C3-1",
+     "items": [
+      {
+       "kind": "check",
+       "name": "i64.C3-1.sub"
+      },
+      {
+       "kind": "mark",
+       "name": "i64.C3-1.raw1",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "i64.C3-1.raw2",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "i64.C3-1.raw3",
+       "equals": 2147483647
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m02.raw1, raw2, raw3"
+      ],
+      "expect": "0, 0, 2147483647 (5−0xFFFFFFFF 가 6 이면 부호 있는 비교 — 값 그대로 기록)",
+      "done_marker": "통합 맵: aa.i64.end > 0 (phase 6 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m02.done (run_tests 끝)",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "02 i64_check",
+      "bundle": "auto_all",
+      "instrument": "i64_ingame.eps run_tests() 끝에서 raw1~3 dbg.watch"
+     }
+    },
+    {
+     "kind": "check",
+     "id": "C3-2",
+     "name": "i64.C3-2.res",
+     "total": 13,
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m02.passbits (keep() 23개의 통과 비트)",
+       "watch_mem m02.res[3..15] (lo, hi)"
+      ],
+      "expect": "res 3~8 = 4294967295, 0, 2, 0, 0, 9800000000 / 9~12 = 4294967295, 0, 2, 0 / 13~15 = 4294967295, 0, 2 → 비트 3~15 모두 1",
+      "done_marker": "통합 맵: aa.i64.end > 0 (phase 6 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m02.done",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "02 i64_check",
+      "bundle": "auto_all",
+      "instrument": "keep() 에서 passbits |= 1<<ti, res 배열 주소 dbg.watch_mem"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "C3-3",
+     "items": [
+      {
+       "kind": "result",
+       "name": "i64.C3-3.all",
+       "total": 23
+      },
+      {
+       "kind": "text",
+       "name": "i64.C3-3.fmt",
+       "equals": "4294967295 0 2 0 0 9800000000 4294967295 0 2 0 4294967295 0 2 18446744073709551615 4294967295 18446744073709551615 4294967296 5 5 7 18446744073709551615 -1"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m02 = okCount / total",
+       "watch m02.passbits 16~22",
+       "result m02fmt (fmt 문자열 자체 점검)"
+      ],
+      "expect": "23 / 23, 10진 출력 18446744073709551615·-1 등 기대 문자열과 같음",
+      "done_marker": "통합 맵: aa.i64.end > 0 (phase 6 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m02.done",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "02 i64_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "i64/i128 의 fmt() 10진 출력은 화면 글로만 보인다 → run_tests 에서 fmt 결과를 기대 문자열과 strcmp 하는 자체 점검을 더해 결과 카운터에 넣기"
+     }
+    }
+   ]
+  },
+  {
+   "name": "i64_ops",
+   "phase": 7,
+   "title": "64비트 곱셈·나눗셈·비트 (D4-1)",
+   "timeout_s": 60,
+   "timeout_cycles": 100,
+   "items": [
+    {
+     "kind": "group",
+     "id": "D4-1",
+     "items": [
+      {
+       "kind": "result",
+       "name": "i64_ops.D4-1.all",
+       "total": 56
+      },
+      {
+       "kind": "text",
+       "name": "i64_ops.D4-1.fmt",
+       "equals": "1 18446744065119617025 12800038400000000 2459930256624457935 18446744065119617025 18440000000000000000 18446744073709551610 2147483647500 1844674407370955161 5 8589934588 3 4266666666 2 4294967295 0 1 9141386507638288911 18446744073709551615 100 1844674407370955 1615 4275878551 2004318073 17934334516106508 528 -3 -1 -3 1 -9223372036854775808 0 9223372036854775807 5 -9223372036854775808 -5 1 -5 67555025454370560 18442521884618653455 18374966859164282895 1085102592335216895 9223372036854775808 1 0 0 5083102805657387008 1073741824 156374987040 288230376304421692 4294967295 2147483647 4294967295 2147483648 5 9223372036854775808"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m15 = okCount / total",
+       "watch m15.passbits(56)",
+       "result m15fmt"
+      ],
+      "expect": "56 / 56 (+ fmt 문자열 자체 점검 통과)",
+      "done_marker": "통합 맵: aa.i64_ops.end > 0 (phase 7 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m15.done (run_tests 끝)",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "15 i64_ops_check",
+      "bundle": "auto_all",
+      "instrument": "i64/i128 의 fmt() 10진 출력은 화면 글로만 보인다 → run_tests 에서 fmt 결과를 기대 문자열과 strcmp 하는 자체 점검을 더해 결과 카운터에 넣기"
+     }
+    }
+   ]
+  },
+  {
+   "name": "i128",
+   "phase": 8,
+   "title": "128비트 사칙·10진 (F20-1)",
+   "timeout_s": 60,
+   "timeout_cycles": 100,
+   "items": [
+    {
+     "kind": "group",
+     "id": "F20-1",
+     "items": [
+      {
+       "kind": "result",
+       "name": "i128.F20-1.all",
+       "total": 46
+      },
+      {
+       "kind": "text",
+       "name": "i128.F20-1.fmt",
+       "equals": "0 18446744073709551616 79228162514264337593543950336 340282366920938463463374607431768211455 79228162514264337593543950335 0 18446744073709551615 5 35 44 21 35 340282366920938463426481119284349108225 6500000000000000000000000000000 1505644448203263502622459810266844400 18446744065119617025 1 340282366920938463463374607431768211455 335048531687535357337265867131914354688 6500000000000000000000000000000 34028236692093846346337460743176821145 5 18446744073709551617 0 2075258708292324583912 40992764608284833 158456324954741698926609432560 15 1073741823 1180591620716337561604 1 170141183460469231731687303715884105726 0 18446744073709551617 340282366920938463463374607431768211455 123 68056473384187692692674921486353642 1455 12676506002282294014967032177 21 113427455640312821154458202477256070485 0 18446744073709551615 5 4294967295 5"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m24 = okCount / total",
+       "watch m24.passbits(46)",
+       "result m24fmt"
+      ],
+      "expect": "46 / 46 (+ 39자리 10진 fmt 자체 점검)",
+      "done_marker": "통합 맵: aa.i128.end > 0 (phase 8 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m24.done (run_tests 끝)",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "24 i128_check",
+      "bundle": "auto_all",
+      "instrument": "i128_ingame.eps: run_tests 끝 dbg.result, fmt 문자열 strcmp 자체 점검 추가"
+     }
+    }
+   ]
+  },
+  {
+   "name": "numfmt",
+   "phase": 9,
+   "title": "숫자 서식·이름 표 (D5-1·9·10)",
+   "timeout_s": 60,
+   "timeout_cycles": 100,
+   "items": [
+    {
+     "kind": "group",
+     "id": "D5-1",
+     "items": [
+      {
+       "kind": "result",
+       "name": "numfmt.D5-1.all",
+       "total": 23
+      },
+      {
+       "kind": "check",
+       "name": "numfmt.D5-1.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "numfmt.D5-1.lastbad",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "numfmt.D5-1.cells",
+       "equals": 1
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m16 = okCount / total",
+       "watch m16.lastBad, cellsOk"
+      ],
+      "expect": "23 / 23, 틀린 번호 0, 셀 왕복 1",
+      "done_marker": "통합 맵: aa.numfmt.end > 0 (phase 9 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m16.done (run_tests 끝)",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "16 numfmt_check",
+      "bundle": "auto_all",
+      "instrument": "numfmt_ingame.eps run_tests 끝에서 dbg.result + watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D5-9",
+     "items": [
+      {
+       "kind": "check",
+       "name": "numfmt.D5-9.same"
+      },
+      {
+       "kind": "text",
+       "name": "numfmt.D5-9.name20"
+      },
+      {
+       "kind": "text",
+       "name": "numfmt.D5-9.eudplib",
+       "offset": 3
+      },
+      {
+       "kind": "mark",
+       "name": "numfmt.D5-9.color",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m16.nameBuf:8 (0x6D0FDC 이름 표 서식 결과)",
+       "watch_mem 0x57EEEB:7 (eudplib 이름, 미러 밖)",
+       "watch m16.cellsOk"
+      ],
+      "expect": "색 코드를 뗀 두 이름 바이트가 같음(16바이트까지), 첫 바이트 색 0x08, 셀 왕복 1. 빨간색은 눈",
+      "done_marker": "통합 맵: aa.numfmt.end > 0 (phase 9 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m16.done",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "16 numfmt_check",
+      "bundle": "auto_all",
+      "notes": "사용자 이름이 ASCII 라 클랜 태그·한글·16바이트 초과 경우는 못 봄",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "nameBuf·0x57EEEB 를 dbg.watch_mem"
+     }
+    }
+   ]
+  },
+  {
+   "name": "cmp_cell",
+   "phase": 10,
+   "title": "안전 비교·Ccode (B1-1·C2-1)",
+   "timeout_s": 60,
+   "timeout_cycles": 100,
+   "items": [
+    {
+     "kind": "result",
+     "id": "B1-1",
+     "name": "cmp_cell.B1-1",
+     "total": 15,
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m05 = selftest() 값 / 15"
+      ],
+      "expect": "15 / 15",
+      "done_marker": "통합 맵: aa.cmp_cell.end > 0 (phase 10 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m05.done (tick == 24 이후)",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "05 cmp_check",
+      "bundle": "auto_all",
+      "instrument": "cmp_example.eps afterTriggerExec: tick == 24 에서 n 을 dbg.result('m05', n, 15) + done"
+     }
+    },
+    {
+     "kind": "result",
+     "id": "C2-1",
+     "name": "cmp_cell.C2-1",
+     "total": 18,
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m06 = selftest() / 18 (+ 틀린 번호 비트마스크)"
+      ],
+      "expect": "18 / 18",
+      "done_marker": "통합 맵: aa.cmp_cell.end > 0 (phase 10 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m06.done (tick == 24 이후)",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "06 cell_check",
+      "bundle": "auto_all",
+      "instrument": "cell_example.eps: selftest 의 각 n += 줄을 번호별 비트로도 남겨 dbg.result('m06', n, 18) + 비트마스크 watch"
+     }
+    }
+   ]
+  },
+  {
+   "name": "mathx",
+   "phase": 11,
+   "title": "삼각·정수 수학 = CtrigAsm (C9-2)",
+   "timeout_s": 60,
+   "timeout_cycles": 150,
+   "items": [
+    {
+     "kind": "group",
+     "id": "C9-2",
+     "items": [
+      {
+       "kind": "result",
+       "name": "mathx.C9-2.all",
+       "total": 110
+      },
+      {
+       "kind": "result",
+       "name": "mathx.C9-2.lengthdir",
+       "total": 19
+      },
+      {
+       "kind": "result",
+       "name": "mathx.C9-2.rotate",
+       "total": 12
+      },
+      {
+       "kind": "result",
+       "name": "mathx.C9-2.atan2",
+       "total": 37
+      },
+      {
+       "kind": "result",
+       "name": "mathx.C9-2.div",
+       "total": 18
+      },
+      {
+       "kind": "result",
+       "name": "mathx.C9-2.int",
+       "total": 24
+      },
+      {
+       "kind": "mark",
+       "name": "mathx.C9-2.sample_c",
+       "equals": 70
+      },
+      {
+       "kind": "mark",
+       "name": "mathx.C9-2.sample_s",
+       "equals": 70
+      },
+      {
+       "kind": "mark",
+       "name": "mathx.C9-2.sample_a",
+       "equals": 46
+      },
+      {
+       "kind": "mark",
+       "name": "mathx.C9-2.sample_q",
+       "equals": 9
+      },
+      {
+       "kind": "mark",
+       "name": "mathx.C9-2.sample_nc",
+       "equals": 4294967210
+      },
+      {
+       "kind": "mark",
+       "name": "mathx.C9-2.sample_ns",
+       "equals": 4294967247
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m07 = good / total",
+       "watch m07.group_ok[11]",
+       "watch m07.samples (c, s, a, q, nc, ns)"
+      ],
+      "expect": "110 / 110, 그룹별 19·8·4·15·6·16·9·9·10·7·7, 표본 (70,70) 46 9 (FFFFFFAA,FFFFFFCF)",
+      "done_marker": "통합 맵: aa.mathx.end > 0 (phase 11 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m07.frame >= 20",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "07 mathx_check",
+      "bundle": "auto_all",
+      "instrument": "mathx_ingame.eps: tally() 에서 그룹 결과 배열, g_samples 값 dbg.watch"
+     }
+    }
+   ]
+  },
+  {
+   "name": "players",
+   "phase": 12,
+   "title": "run_as·each 뒤 CP (B8-4)",
+   "timeout_s": 60,
+   "timeout_cycles": 100,
+   "items": [
+    {
+     "kind": "group",
+     "id": "B8-4",
+     "items": [
+      {
+       "kind": "check",
+       "name": "players.B8-4.cp"
+      },
+      {
+       "kind": "mark",
+       "name": "players.B8-4.delta",
+       "equals": 2
+      },
+      {
+       "kind": "mark",
+       "name": "players.B8-4.loops",
+       "min": 1
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "peek 0x57F0F0 + 4*2 (P3 광물, 미러)"
+      ],
+      "expect": "setcurpl(P3) → run_as(Everyone, …) 뒤 SetResources(CurrentPlayer, Add, 1, Ore) 가 P3 광물 +1, foreach(pl.each(Humans)) 뒤에도 +1 (합 +2)",
+      "done_marker": "통합 맵: aa.players.end > 0 (phase 12 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m20b.done",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "20 players_check (계측 추가 → auto_all)",
+      "bundle": "auto_all",
+      "notes": "싱글로 되는 공유 로직 사실이라 통합 맵(auto_all)으로 옮김",
+      "instrument": "예제에 없음 — 새 코드: 통합 맵(auto_all) phase 12 에 f_setcurpl(2) → pl.run_as(...) → SetResources(CP,+1) → foreach(pl.each(pl.Humans)){} → SetResources(CP,+1). P3 가 빈 슬롯이어도 자원 칸은 쓰인다"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "F19-1b",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "players.F19-1b.host",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "players.human_mask",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "players.is_human1",
+       "min": 0
+      }
+     ],
+     "info": {
+      "read": [
+       "watch m23.host (host_player())",
+       "watch_mem 0x6D0FDC"
+      ],
+      "expect": "모든 PC·싱글·리플레이에서 같은 방장 번호",
+      "done_marker": "-",
+      "category": "MULTI",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "(확인 맵 없음)",
+      "bundle": "M1_multi (싱글 값은 auto_all phase 12 에서 참고로 기록)",
+      "notes": "싱글 값은 auto_all phase 12 에서 참고로 기록",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "host_player 값을 dbg.watch 하는 코드 추가"
+     }
+    }
+   ]
+  },
+  {
+   "name": "plot",
+   "phase": 13,
+   "title": "도형 찍기 모양·속도·스케줄 (D7)",
+   "timeout_s": 120,
+   "timeout_cycles": 900,
+   "items": [
+    {
+     "kind": "group",
+     "id": "D7-1",
+     "items": [
+      {
+       "kind": "check",
+       "name": "plot.D7-1.pos"
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-1.posbad",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-1.madebad",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-1.nudged",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-1.orderbad",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-1.p2dx",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-1.p2dy",
+       "equals": 4294967264
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m12.pts (새 유닛 (종류, x, y, 프레임) 고리 버퍼)",
+       "watch m12.posbad, m12.orderbad"
+      ],
+      "expect": "①원 19·②별 31·③④⑤막대 5씩: 만든 유닛 위치가 중심 + 도형 좌표(shapes.point_at)와 순서까지 같음(posbad 0, orderbad 0). 원 두 번째 점이 (0, −32)=12시, ⑤ = ④ 좌표. 사진 한 장은 선택",
+      "done_marker": "통합 맵: aa.plot.end > 0 (phase 13 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m12.frame >= 121",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "12 plot_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 12",
+      "notes": "좌표 자체가 CB Paint 원본과 같다는 것은 t_shape(원본 플러그인 기계어 대조)가 이미 보였음 — 인게임에서 남은 건 '그 자리에 그 순서로 생기는가'",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "plot_ingame.eps: 매 프레임 units.new_units() 로 새 유닛의 +0x28 위치를 읽어 plotter 별 기대 좌표열과 맞대 보고 posbad/orderbad 를 센다(공중 유닛이라 생성 순간 좌표는 로케이션 중심 그대로). plot API 가 만든 유닛 epd 를 주면 그걸로"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D7-2",
+     "items": [
+      {
+       "kind": "dwords",
+       "name": "plot.D7-2.pF.seq",
+       "equals": [
+        6,
+        6,
+        6,
+        1
+       ]
+      },
+      {
+       "kind": "dwords",
+       "name": "plot.D7-2.pG.seq",
+       "equals": [
+        6,
+        6,
+        6,
+        1
+       ]
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-2.pF.span",
+       "equals": 3
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-2.pG.span",
+       "equals": 24
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-2.pF.n",
+       "equals": 4
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-2.pG.n",
+       "equals": 4
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m12.made_per_frame[PH2..PH2+30]"
+      ],
+      "expect": "왼쪽(pF) 6,6,6,1 개가 4프레임에 끝, 오른쪽(pG) 8프레임마다 6개씩 25프레임에 끝 — 자체 점검 busy/done 과 함께",
+      "done_marker": "통합 맵: aa.plot.end > 0 (phase 13 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH2 + 24",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "12 plot_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 12",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "프레임별 made 증가량 배열"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D7-3",
+     "items": [
+      {
+       "kind": "dwords",
+       "name": "plot.D7-3.pS.seq",
+       "equals": [
+        1,
+        1,
+        1,
+        3,
+        3,
+        3,
+        5,
+        5,
+        7,
+        5,
+        5,
+        3,
+        3,
+        3,
+        1,
+        1,
+        1
+       ]
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-3.pS.span",
+       "equals": 64
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-3.pS.n",
+       "equals": 17
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m12.made_per_frame[PH3..PH3+68]"
+      ],
+      "expect": "4프레임마다 열 하나: 1,1,1,3,3,3,5,5,7,5,5,3,3,3,1,1,1 (가운데 열도 같은 박자)",
+      "done_marker": "통합 맵: aa.plot.end > 0 (phase 13 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH3 + 64",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "12 plot_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 12",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "D7-2 와 같은 배열"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D7-4",
+     "items": [
+      {
+       "kind": "check",
+       "name": "plot.D7-4.made"
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-4.rounds",
+       "equals": 3
+      },
+      {
+       "kind": "mark",
+       "name": "plot.D7-4.made",
+       "equals": 211
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m12.rounds, m12.made"
+      ],
+      "expect": "원 3번, 만든 점 211",
+      "done_marker": "통합 맵: aa.plot.end > 0 (phase 13 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH5",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "12 plot_check",
+      "bundle": "auto_all",
+      "instrument": "값 dbg.watch"
+     }
+    },
+    {
+     "kind": "result",
+     "id": "D7-5",
+     "name": "plot.D7-5.all",
+     "total": 15,
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m12 = good / checks"
+      ],
+      "expect": "15 / 15",
+      "done_marker": "통합 맵: aa.plot.end > 0 (phase 13 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH5 (540)",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "12 plot_check",
+      "bundle": "auto_all",
+      "instrument": "dbg.result"
+     }
+    }
+   ]
+  },
+  {
+   "name": "spawn",
+   "phase": 14,
+   "title": "G_CB 식 소환 패턴·로케이션 (A-3·E12)",
+   "timeout_s": 180,
+   "timeout_cycles": 1400,
+   "items": [
+    {
+     "kind": "group",
+     "id": "A-3",
+     "items": [
+      {
+       "kind": "check",
+       "name": "spawn.A-3.warp"
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.A-3.warp_x",
+       "equals": 2731
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.A-3.warp_y",
+       "equals": 2048
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.A-3.boss_pos_x",
+       "min": 2699,
+       "max": 2763
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.A-3.boss_pos_y",
+       "min": 2016,
+       "max": 2080
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-4.mark_x",
+       "min": 3381,
+       "max": 3445
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-4.mark_y",
+       "min": 2016,
+       "max": 2080
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m19.warp_tx/ty (워프 층 유닛 CUnit +0x58 orderTarget 좌표, 층마다 첫 유닛)",
+       "watch m19.boss_x/y (CountBoss 의 epd → +0x28 위치)",
+       "watch m19.mark_x[5] (CountMark 의 epd → +0x28)"
+      ],
+      "expect": "17번: 워프 유닛 명령 목표 = 로케이션 14 중심 (2731, 2048) — (2048, 2048)=13 이면 오프바이원. 18번: 보스 위치 ≈ (2731, 2048) (±32). 19번(E12-4): 마커 5기 x 평균 ≈ 3413(로케이션 15)",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m19.frame >= PH3 + 20 (= 620)",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "19 spawn_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 19",
+      "notes": "원본 맵(Stella Set_Warp, theSeed PlotLoc=102) 쪽 확인은 원본을 고칠 때 따로",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "spawn_ingame.eps WarpSeen/CountBoss/CountMark: epd 로 wread_epd(epd+10,0/2)(+0x28 위치)와 wread_epd(epd+22,0/2)(+0x58 orderTarget.pt — 오프셋은 eudplib CUnit 정의로 확인)를 변수에 담아 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-1",
+     "items": [
+      {
+       "kind": "check",
+       "name": "spawn.E12-1.count"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-1.overflow"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-1.order"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-1.pos"
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-1.homes",
+       "equals": 64
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-1.expect",
+       "equals": 64
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-1.overflow",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-1.order_x",
+       "equals": 2048
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-1.order_y",
+       "equals": 3413
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-1.posbad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m19.homes, overflow, N1, N2",
+       "watch m19.posbad (콜백 x,y 와 CUnit +0x28 불일치 수)",
+       "watch m19.edge_min/max",
+       "watch m19.order_bad (orderTarget ≠ 로케이션 23 중심)"
+      ],
+      "expect": "만든 저글링 = N1 + N2(각 32, 합 64), 넘침 0, 생성 순간 위치 불일치 0, 명령 목표 (2048, 3413). 가장자리에서 밀려남은 몇 프레임 뒤 위치로 기록(눈 확인은 선택)",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m19.frame >= 27",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "19 spawn_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 19",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "CountHome 에서 wread_epd(epd+10,…) 와 x,y 비교, +0x58 목표 비교"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "C11-9",
+     "items": [
+      {
+       "kind": "check",
+       "name": "spawn.E12-1.count"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-1.pos"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "E12-1 결과"
+      ],
+      "expect": "건작 본문 spawn 호출 → 중심 = 레코드 x, y (E12-1 anchor 와 같은 방식)",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): E12-1 판정 뒤",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "19 spawn_check (E12-1 로 대신)",
+      "bundle": "auto_all",
+      "notes": "따로 여는 맵 없음",
+      "instrument": "없음"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-2",
+     "items": [
+      {
+       "kind": "check",
+       "name": "spawn.E12-2.count"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-2.inv"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-2.inv_off"
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-2.parked",
+       "equals": 73
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-2.vis",
+       "equals": 219
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-2.live_at_gap",
+       "min": 2
+      },
+      {
+       "kind": "dwords",
+       "name": "spawn.E12-2.hydra",
+       "equals": [
+        11,
+        6,
+        8,
+        4,
+        4,
+        8,
+        9,
+        4,
+        3,
+        4,
+        9,
+        3
+       ]
+      },
+      {
+       "kind": "dwords",
+       "name": "spawn.E12-2.obs",
+       "equals": [
+        11,
+        6,
+        8,
+        4,
+        4,
+        8,
+        9,
+        4,
+        3,
+        4,
+        9,
+        3,
+        11,
+        6,
+        8,
+        4,
+        4,
+        8,
+        9,
+        4,
+        3,
+        4,
+        9,
+        3,
+        11,
+        6,
+        8,
+        4,
+        4,
+        8,
+        9,
+        4,
+        3,
+        4,
+        9,
+        3
+       ]
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-2.hydra_n",
+       "equals": 12
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-2.obs_n",
+       "equals": 36
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m19.hydra_per_frame[PH2..PH2+20], obs_per_frame[PH2..PH2+60]",
+       "watch m19.live_at_gap, parked, vis",
+       "watch m19.inv_flag (히드라 무적 비트 +0xDC)",
+       "peek 0x582324 + 12*u + p (전체 유닛 수 표, 미러) (히드라 38, P2)"
+      ],
+      "expect": "히드라가 한 프레임에 한 열씩 18프레임(빈 6열 포함 끊김 없음), 옵저버 같은 박자 세 번(0·18·36), parked 73, vis 219, 풀리기 전 무적 비트 1 → PH2+150 뒤 0. 원본과 페이드 속도 나란히 비교는 사람",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m19.frame >= PH2 + 160",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "19 spawn_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 19 (원본과 페이드 비교)",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "Park/CountVis 에서 프레임별 카운터 배열"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-3",
+     "items": [
+      {
+       "kind": "check",
+       "name": "spawn.E12-3.layers"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-3.boss"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-3.warp_pos"
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-3.step12",
+       "equals": 2
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-3.step2",
+       "equals": 2
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-3.step3",
+       "equals": 2
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-3.boss",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-3.marks",
+       "equals": 5
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-3.warp_posbad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m19.w8, w12, w2, w3, boss, marks",
+       "watch m19.warp_tx/ty",
+       "watch m19.warp_posbad"
+      ],
+      "expect": "층 프레임 차 2·2·2, boss 1(로케이션 14), marks 5, 네 층 유닛 명령 목표 = 로케이션 14 (2731, 2048), 36점 위치 불일치 0",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m19.frame >= PH3 + 20",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "19 spawn_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 19",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "A-3 과 같은 계측"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-4",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "spawn.E12-4.mark_x",
+       "min": 3381,
+       "max": 3445
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-4.mark_y",
+       "min": 2016,
+       "max": 2080
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m19.mark_x[5], mark_y[5]"
+      ],
+      "expect": "피닉스 5기 가로줄 중심 (3413, 2048) = 로케이션 15 (14 나 16 이면 다름)",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH3 + 20",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "19 spawn_check (화면 줄 [A-3])",
+      "bundle": "auto_all",
+      "notes": "체크리스트 번호와 화면 줄머리가 다르다(E12-4 ↔ [A-3])",
+      "instrument": "CountMark 에서 위치 기록"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-5",
+     "items": [
+      {
+       "kind": "dwords",
+       "name": "spawn.E12-5.spiral",
+       "equals": [
+        6,
+        4294967265,
+        47,
+        4294967254,
+        95,
+        4294967286,
+        110,
+        63,
+        65,
+        146,
+        4294967257,
+        187,
+        4294967130,
+        149,
+        4294967042,
+        26,
+        4294967047,
+        4294967153,
+        4294967166,
+        4294967004
+       ]
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-5.n",
+       "equals": 10
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m19.spiral_xy[10]"
+      ],
+      "expect": "스커지 10기 위치의 각도가 12시에서 시작해 시계 방향으로 늘어남(각 차 부호 일정)",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH5",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "19 spawn_check (화면 줄 [E12-4])",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 19",
+      "notes": "화면 줄머리 [E12-4]",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "Nothing rtype 대신 기록용 rtype 콜백으로 위치 저장"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-6",
+     "items": [
+      {
+       "kind": "check",
+       "name": "spawn.E12-6.order"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-6.gone"
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-6.brood",
+       "equals": 19
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-6.order_x",
+       "equals": 2048
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-6.order_y",
+       "equals": 2731
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "peek 0x582324 + 12*u + p (전체 유닛 수 표, 미러) (브루들링 40, P2)",
+       "watch m19.brood_made, brood_order_bad"
+      ],
+      "expect": "브루들링 19마리가 로케이션 8 에 생기고 목표 로케이션 18 순찰, 약 15프레임 뒤 수 0",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH5 + 30",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "19 spawn_check (화면 줄 [E12-5])",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 19",
+      "notes": "화면 줄머리 [E12-5]",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "skill_unit 뒤 콜백 기록(또는 수 표만 peek)"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-7",
+     "items": [
+      {
+       "kind": "check",
+       "name": "spawn.E12-7.image"
+      },
+      {
+       "kind": "check",
+       "name": "spawn.E12-7.gone"
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-7.image",
+       "equals": 546
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "peek 0x582324 + 12*u + p (전체 유닛 수 표, 미러) (스캐너 스윕 33, P2)",
+       "watch_mem 0x666458 (스캐너 스윕 스프라이트 이미지 칸 — 복원 546)"
+      ],
+      "expect": "이미지 429 원이 번쩍임·모양(눈). 스캐너 유닛 남지 않음(수 0)·이미지 칸 546 복원은 자동",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH6 + 30",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "19 spawn_check (화면 줄 [E12-6])",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 19",
+      "notes": "화면 줄머리 [E12-6]",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "0x666458 dbg.watch_mem"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-8",
+     "items": [
+      {
+       "kind": "result",
+       "name": "spawn.E12-8.all",
+       "total": 11
+      },
+      {
+       "kind": "mark",
+       "name": "spawn.E12-8.live",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m19 = good / checks",
+       "watch m19.live"
+      ],
+      "expect": "11 / 11, 남은 작업 0",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= PH7",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "19 spawn_check (화면 줄 [E12-7])",
+      "bundle": "auto_all",
+      "instrument": "dbg.result"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E12-9",
+     "items": [
+      {
+       "kind": "wall",
+       "metric": "fps",
+       "min": 1
+      },
+      {
+       "kind": "wall",
+       "metric": "max_gap_s",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "hdr:seq 증가 + wall (2초 이상 seq 정지 = 멈춤, 블록 사라짐 = 게임 종료/튕김) (프레임 시간)"
+      ],
+      "expect": "끊김 체감 — 브리지는 E12-1·E12-2 구간 프레임 시간 기록",
+      "done_marker": "통합 맵: aa.spawn.end > 0 (phase 14 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "19 spawn_check",
+      "bundle": "auto_all (프레임 시간) + 체감은 사람",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "없음"
+     }
+    }
+   ]
+  },
+  {
+   "name": "bullet",
+   "phase": 15,
+   "title": "총알 방향·칸·종류 교체 (D14)",
+   "timeout_s": 180,
+   "timeout_cycles": 1200,
+   "items": [
+    {
+     "kind": "group",
+     "id": "D14-0",
+     "items": [
+      {
+       "kind": "check",
+       "name": "bullet.D14-0.made"
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.ctl",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.ctlair",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.ctl208",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b3",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b4",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b5",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b6",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b7",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b8",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b9",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.b10",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.se208",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.se0",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.gf208",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.gf0",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.av208",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.av0",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.fl208",
+       "equals": 88
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.spr106",
+       "equals": 344
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.wg127",
+       "equals": 106
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.elev",
+       "equals": 20
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.bdim",
+       "equals": 1
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.prop",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.bLT",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.bRB",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.head",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.head2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-0.first",
+       "min": 0
+      }
+     ],
+     "info": {}
+    },
+    {
+     "kind": "group",
+     "id": "D14-1",
+     "items": [
+      {
+       "kind": "check",
+       "name": "bullet.D14-1.facing",
+       "total": 8
+      },
+      {
+       "kind": "check",
+       "name": "bullet.D14-1.dead",
+       "total": 8
+      },
+      {
+       "kind": "dwords",
+       "name": "bullet.D14-1.face",
+       "equals": [
+        128,
+        160,
+        192,
+        224,
+        0,
+        32,
+        64,
+        96
+       ]
+      },
+      {
+       "kind": "dwords",
+       "name": "bullet.D14-1.dead",
+       "equals": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+       ]
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-1.facingbad",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-1.hits",
+       "equals": 8
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m10.d1_facing[8], d1_want[8]",
+       "watch_mem m10.d1_dir[8] (쏜 뒤 3프레임 탄 위치 변화로 계산한 진행 방향)",
+       "watch_mem m10.d1_dead[8]"
+      ],
+      "expect": "8방향 모두 facing = 기대, 진행 방향 = heading(h) (facing + 128 쪽, ±8), 표적 죽음 1. 방향이 facing 쪽이면 반대로 기록",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m10.frame >= 216",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "10 bullet_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 10",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "bullet_ingame.eps d1(): e 를 배열에 보관, k1 % 24 == 3 에서 wread_epd(e+10,0/2) − 출발점 → mx.atan2 → to_dir256 저장. d1check 의 dead 를 배열로"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D14-2",
+     "items": [
+      {
+       "kind": "check",
+       "name": "bullet.D14-2.facing",
+       "total": 8
+      },
+      {
+       "kind": "check",
+       "name": "bullet.D14-2.dead",
+       "total": 8
+      },
+      {
+       "kind": "check",
+       "name": "bullet.D14-2.near"
+      },
+      {
+       "kind": "check",
+       "name": "bullet.D14-2.far"
+      },
+      {
+       "kind": "check",
+       "name": "bullet.D14-2.near_hit"
+      },
+      {
+       "kind": "dwords",
+       "name": "bullet.D14-2.face",
+       "equals": [
+        128,
+        159,
+        192,
+        224,
+        0,
+        31,
+        64,
+        96
+       ]
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-2.near_facing",
+       "equals": 109
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-2.far_facing",
+       "equals": 192
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-2.far_dead",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-2.facingbad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem m10.d2_facing/want/dir/dead[8]",
+       "watch m10.near_facing, far_facing, same_facing, near_dead, far_dead"
+      ],
+      "expect": "8발 facing = 기대·진행 방향이 표적 쪽·표적 죽음 1, 가까운 목표 facing = to_dir256(atan2(2,1)), 먼 목표 192, 출발=목표 128. 먼 표적 죽음은 사거리에 따라 0 가능(기록)",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m10.frame >= 480",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "10 bullet_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 10 / 출발=목표 한 발은 X_limit",
+      "risk": "출발 = 목표 탄(0 벡터) 한 발 — 튕길 가능성은 낮지만 '튕기지 않는가' 가 질문이라 X_limit 로 옮기기를 권장",
+      "extra": [
+       "VISUAL",
+       "CRASH_RISK"
+      ],
+      "instrument": "D14-1 과 같게 d2/d2b 계측"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D14-4",
+     "items": [
+      {
+       "kind": "check",
+       "name": "bullet.D14-4.made"
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-4.a",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-4.b",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-4.speed",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch 두 탄의 CUnit 속도 칸"
+      ],
+      "expect": "같은 프레임 같은 flingy 두 발이 모두 마지막 속도(4000)로 나가는지 기록(문서화용)",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "(10 에 없음)",
+      "bundle": "auto_all",
+      "notes": "맵에 없음 — auto_all phase 15 에 끼워 넣음",
+      "instrument": "새 코드: 한 프레임에 speed_actions(500)→bullet, speed_actions(4000)→bullet, 몇 프레임 뒤 두 탄 속도 칸 비교"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D14-5",
+     "items": [
+      {
+       "kind": "check",
+       "name": "bullet.D14-5.pos"
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-5.ax",
+       "equals": 1000
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-5.ay",
+       "equals": 3400
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-5.bx",
+       "equals": 1200
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-5.by",
+       "equals": 3410
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m10.d5_ax, d5_ay, d5_bx, d5_by"
+      ],
+      "expect": "(1000, 3400), (1200, 3410)",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 492",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "10 bullet_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "d5() 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D14-6",
+     "items": [
+      {
+       "kind": "check",
+       "name": "bullet.D14-6.ue_re"
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-6.count",
+       "equals": 5
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-6.a_a3",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-6.a_e4",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-6.a_dc",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-6.b_a3",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-6.b_dc",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-6.b_e4",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-6.selcount",
+       "min": 0
+      },
+      {
+       "kind": "dwords",
+       "name": "bullet.D14-6.pos"
+      },
+      {
+       "kind": "dwords",
+       "name": "bullet.D14-6.sel"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m10.d6_a..e (epd), +0xA3/+0xDC/+0xE4 값",
+       "watch_mem m10.d6_pos[5][10초] (밀림 = 위치 변화)",
+       "watch_mem 0x6284B8:12 (로컬 선택 표 — 사람이 클릭·드래그한 뒤 어느 탄이 선택됐는지)"
+      ],
+      "expect": "①~⑤ 각각: 클릭 선택됨/드래그 선택됨(선택 표에 epd 포인터가 있나), 서로 밀림(위치 변화 px), 칸 값(만든 직후·ue_re 뒤). 안개 속 보임은 눈",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame 516 ~ 756 (10초)",
+      "category": "AUTO_ASSIST",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "10 bullet_check",
+      "bundle": "auto_all (값·위치) + 사람 클릭·드래그(선택, 10초)",
+      "notes": "사람 몫: 10초 안에 다섯 개를 하나씩 클릭하고 한 번 드래그",
+      "extra": [
+       "VISUAL",
+       "AUTO"
+      ],
+      "instrument": "d6(): 다섯 epd·칸 값 dbg.watch, 매 프레임 위치 기록, 선택 표 dbg.watch_mem(로컬 읽기 전용)"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D14-7",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "bullet.D14-7.order1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-7.type1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-7.sprite1",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-7.order2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-7.type2",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-7.sprite2",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m10.e7_order, e7_type, e7_sprite, e7b_order, e7b_type, e7b_sprite"
+      ],
+      "expect": "사실 기록: 수명 안 씀 쪽이 남는지(주문·스프라이트 ≠ 0), 수명 12 쪽은 사라짐(0)",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 576",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "10 bullet_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "d7check 값 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D14-8",
+     "items": [
+      {
+       "kind": "check",
+       "name": "bullet.D14-8.shell"
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-8.shell",
+       "equals": 210
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m10.shellType",
+       "(가능하면) 총알 표에서 출처 유닛별 weaponType"
+      ],
+      "expect": "종류=210 (자동). 왼쪽 탄이 가운데(야마토)와 같은 모양인지는 눈 — 총알 표(CBullet weaponType +0x5C 추정, sourceUnit +0x60 추정) 스캔이 확인되면 자동",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 610",
+      "category": "VISUAL",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "10 bullet_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 10",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "d8(): shellType dbg.watch. 선택: 총알 표 순회로 출처가 s 인 총알의 weaponType 기록(오프셋은 구현 때 BWAPI CBullet 과 대조)"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D14-9",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "bullet.D14-9.elev",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "bullet.D14-9.dat",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch 탄 elevation 칸"
+      ],
+      "expect": "height_actions 로 높이·그리기 층이 바뀜, 생성 전에 써야 하는지",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "(bullet_example)",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 10",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "확인 맵 없음 — bullet_example 또는 auto_all phase 15 에 추가"
+     }
+    },
+    {
+     "kind": "manual",
+     "id": "D14-13",
+     "checklist": true,
+     "expect": "208 탄 모양이 UE_RE 와 같은가 (dat 값은 시험이 대조함)",
+     "info": {
+      "expect": "BulletDat 만으로 설정한 208 탄 모양이 UE_RE 와 같음(dat 값은 시험이 이미 대조)",
+      "done_marker": "통합 맵: aa.bullet.end > 0 (phase 15 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "10 bullet_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 10",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "없음"
+     }
+    }
+   ]
+  },
+  {
+   "name": "display",
+   "phase": 16,
+   "title": "DisplayPrint 대체 (E6)",
+   "timeout_s": 120,
+   "timeout_cycles": 900,
+   "items": [
+    {
+     "kind": "group",
+     "id": "E6-8",
+     "items": [
+      {
+       "kind": "result",
+       "name": "display.E6-8.all",
+       "total": 5
+      },
+      {
+       "kind": "check",
+       "name": "display.E6-8.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "display.E6-8.lastbad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "result m25 = okCount / total",
+       "watch m25.lastBad"
+      ],
+      "expect": "7 / 7, 틀린 번호 0",
+      "done_marker": "통합 맵: aa.display.end > 0 (phase 16 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 1",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "25 display_check",
+      "bundle": "auto_all",
+      "instrument": "display_ingame.eps self_check 뒤 dbg.result"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E6-5",
+     "items": [
+      {
+       "kind": "check",
+       "name": "display.E6-5.same"
+      },
+      {
+       "kind": "text",
+       "name": "display.E6-5.line",
+       "regex": "같아야: (.+?) / \\1 / \\1 / \\1"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem 0x57EEEB:7 (실시간 이름)",
+       "watch_mem 0x6D0FDC 이름 표(P1)",
+       "watch_mem PName 캐시 버퍼",
+       "watch_mem LocalName 버퍼"
+      ],
+      "expect": "네 이름 바이트가 같음(색 코드 제외, name20 은 16바이트까지). P1 색(빨강)은 눈",
+      "done_marker": "통합 맵: aa.display.end > 0 (phase 16 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): page 4",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "25 display_check",
+      "bundle": "auto_all",
+      "notes": "사용자 이름이 ASCII — 클랜 태그·한글·긴 이름은 못 봄",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "네 버퍼 주소를 dbg.watch_mem (display 모듈이 캐시 주소를 내주어야 함)"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E6-9",
+     "items": [
+      {
+       "kind": "text",
+       "name": "display.E6-9.line",
+       "contains": "[E6-9] 긴 줄"
+      },
+      {
+       "kind": "mark",
+       "name": "display.E6-9.len",
+       "min": 219
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat"
+      ],
+      "expect": "긴 줄 끝 '끝(…)' 이 보임(눈). 버퍼에서 그 줄 길이·NUL 위치(218 넘는지)는 자동",
+      "done_marker": "통합 맵: aa.display.end > 0 (phase 16 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): page 6",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "25 display_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 25",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "채팅 스냅숏"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E6-10",
+     "items": [
+      {
+       "kind": "check",
+       "name": "display.E6-10.pin"
+      },
+      {
+       "kind": "mark",
+       "name": "display.E6-10.calls",
+       "min": 60
+      },
+      {
+       "kind": "mark",
+       "name": "display.E6-10.changes",
+       "min": 3
+      },
+      {
+       "kind": "mark",
+       "name": "display.E6-10.pinbad",
+       "equals": 0
+      },
+      {
+       "kind": "mark",
+       "name": "display.E6-10.slotchg",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat"
+      ],
+      "expect": "every=24 줄이 같은 slot 에 머물고 숫자가 24프레임마다 한 번 바뀜",
+      "done_marker": "통합 맵: aa.display.end > 0 (phase 16 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): page 7",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "25 display_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "채팅 스냅숏"
+     }
+    }
+   ]
+  },
+  {
+   "name": "chat",
+   "phase": 17,
+   "title": "타자기·채팅 줄 (D17)",
+   "timeout_s": 180,
+   "timeout_cycles": 2000,
+   "items": [
+    {
+     "kind": "group",
+     "id": "D17-1",
+     "items": [
+      {
+       "kind": "check",
+       "name": "chat.D17-1.reveal"
+      },
+      {
+       "kind": "text",
+       "name": "chat.D17-1.line",
+       "regex": "^(?!.*!H).*가운데 정렬 — 한 글자씩: 가나다라마바사 ABC"
+      },
+      {
+       "kind": "mark",
+       "name": "chat.D17-1.front10",
+       "min": 5,
+       "max": 11
+      },
+      {
+       "kind": "mark",
+       "name": "chat.D17-1.front70",
+       "min": 30
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat (매 프레임)",
+       "watch m13.frame"
+      ],
+      "expect": "표식 줄이 찍힌 프레임에 빈 줄 → 다음 프레임부터 셀 하나씩 드러남, 드러난 셀에 '!H'·U+200B 바이트 없음(자동). 네모·물음표가 안 보이는지, 가운데 정렬 움직임이 원본과 같은지(눈)",
+      "done_marker": "통합 맵: aa.chat.end > 0 (phase 17 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 90",
+      "category": "VISUAL",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "13 chat_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 13",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "dbg 채팅 스냅숏(프레임 번호 함께)"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D17-2",
+     "items": [
+      {
+       "kind": "check",
+       "name": "chat.D17-2.same"
+      },
+      {
+       "kind": "text",
+       "name": "chat.D17-2.line1",
+       "contains": "[D17-2] 첫째 줄"
+      },
+      {
+       "kind": "text",
+       "name": "chat.D17-2.line2",
+       "contains": "[D17-2] 둘째 줄"
+      },
+      {
+       "kind": "text",
+       "name": "chat.D17-2.line3",
+       "contains": "[D17-2] 셋째 줄"
+      },
+      {
+       "kind": "mark",
+       "name": "chat.D17-2.front1",
+       "min": 5
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat (frame 120~160)"
+      ],
+      "expect": "세 줄 모두 표식이 변환되어 같은 프레임부터 동시에 한 셀씩 드러남(짝·홀 slot 섞임, 홀수는 +2 바이트부터)",
+      "done_marker": "통합 맵: aa.chat.end > 0 (phase 17 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 170",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "13 chat_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "채팅 스냅숏"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D17-3",
+     "items": [
+      {
+       "kind": "text",
+       "name": "chat.D17-3.line",
+       "regex": "^[^�]*é ñ ü ß ç ø Ω"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat"
+      ],
+      "expect": "é ñ ü ß ç ø Ω 가 깨지지 않게 보임(눈). 드러나는 경계가 UTF-8 2바이트를 자르지 않는지는 자동",
+      "done_marker": "통합 맵: aa.chat.end > 0 (phase 17 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 260",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "13 chat_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 13",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "채팅 스냅숏"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D17-4",
+     "items": [
+      {
+       "kind": "check",
+       "name": "chat.D17-4.nul"
+      },
+      {
+       "kind": "text",
+       "name": "chat.D17-4.line",
+       "regex": ": 0123456789AB(CD)?$"
+      },
+      {
+       "kind": "mark",
+       "name": "chat.D17-4.slot",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "chat.D17-4.nul",
+       "equals": 1
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat (frame 288~300)",
+       "watch m13.nx (slot 홀짝)"
+      ],
+      "expect": "짝수 slot 은 212바이트, 홀수 slot 은 214바이트 자리에 NUL → 콜론 뒤 남는 글자 12 / 14 개(16개면 NUL 안 먹음). 줄 꺾임은 눈",
+      "done_marker": "통합 맵: aa.chat.end > 0 (phase 17 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 300",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "13 chat_check",
+      "bundle": "auto_all",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "nx 를 전역으로 dbg.watch + 채팅 스냅숏"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D17-5",
+     "items": [
+      {
+       "kind": "check",
+       "name": "chat.D17-5.limit"
+      },
+      {
+       "kind": "mark",
+       "name": "chat.D17-5.front",
+       "equals": 52
+      },
+      {
+       "kind": "text",
+       "name": "chat.D17-5.line",
+       "regex": "890123$"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat (frame 360~450)"
+      ],
+      "expect": "드러난 셀이 52칸(지운 !H 2칸 포함)에서 멈추고 숫자가 …890123 에서 끝남",
+      "done_marker": "통합 맵: aa.chat.end > 0 (phase 17 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 450",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "13 chat_check",
+      "bundle": "auto_all",
+      "instrument": "채팅 스냅숏"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D17-7",
+     "items": [
+      {
+       "kind": "check",
+       "name": "chat.D17-7.pace"
+      },
+      {
+       "kind": "mark",
+       "name": "chat.D17-7.front20",
+       "min": 6,
+       "max": 12
+      },
+      {
+       "kind": "text",
+       "name": "chat.D17-7.line",
+       "contains": "[D17-7] 소리 판"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "probe m13.wav_count (PlayWAV 실행 횟수)",
+       "chat"
+      ],
+      "expect": "2프레임에 한 글자·글자마다 딸깍·공백은 조용(귀). 드러난 비공백 셀 수 = PlayWAV 횟수는 자동",
+      "done_marker": "통합 맵: aa.chat.end > 0 (phase 17 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 1080",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "13 chat_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 13 (딸깍 소리)",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "slow 타자기 PlayWAV 자리에 dbg.probe"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D17-8",
+     "items": [
+      {
+       "kind": "mark",
+       "name": "chat.D17-8.gone",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat",
+       "wall"
+      ],
+      "expect": "끝난 줄이 시간이 지나 사라짐, 사라지기까지 초, 채팅창을 열면 다시 보이는지",
+      "done_marker": "통합 맵: aa.chat.end > 0 (phase 17 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 1500",
+      "category": "VISUAL",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "13 chat_check",
+      "bundle": "auto_all (값) + 화면: 통합 맵을 지켜보거나 13",
+      "notes": "chatmodel.expire 가정 채우기",
+      "extra": [
+       "AUTO"
+      ],
+      "instrument": "SC:R 줄 표시 시간 칸 주소를 알면 dbg.watch_mem (모르면 눈)"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "D17-9",
+     "items": [
+      {
+       "kind": "check",
+       "name": "chat.D17-9.speed"
+      },
+      {
+       "kind": "mark",
+       "name": "chat.D17-9.delta",
+       "equals": 20
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat",
+       "hdr game_frame",
+       "wall"
+      ],
+      "expect": "타자기 A 가 1프레임 1글자(드러난 셀 수 증가 = 프레임 증가), D17-5 50자에 걸린 벽시계 초(가장 빠름 약 2초)",
+      "done_marker": "통합 맵: aa.chat.end > 0 (phase 17 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): frame >= 450",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "13 chat_check",
+      "bundle": "auto_all",
+      "instrument": "채팅 스냅숏"
+     }
+    }
+   ]
+  },
+  {
+   "name": "final",
+   "phase": 18,
+   "title": "몇 분 뒤 값 유지·CP (B15-4·C11-1)",
+   "timeout_s": 60,
+   "timeout_cycles": 100,
+   "items": [
+    {
+     "kind": "group",
+     "id": "C11-1",
+     "items": [
+      {
+       "kind": "check",
+       "name": "final.C11-1.ok"
+      },
+      {
+       "kind": "mark",
+       "name": "final.C11-1.visits",
+       "min": 1
+      },
+      {
+       "kind": "mark",
+       "name": "final.C11-1.bad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m08.t1ok, visits1, bad1, frame",
+       "hdr:seq 증가 + wall (2초 이상 seq 정지 = 멈춤, 블록 사라짐 = 게임 종료/튕김)"
+      ],
+      "expect": "t1ok = 1, visits1 = frame × 5, bad1 = 0 (여러 프레임 동안 유지). 맵이 멈추면 멈춤으로 기록",
+      "done_marker": "통합 맵: aa.pool.end > 0 (phase 2 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m08.frame >= 60 (1초 넘게 유지)",
+      "category": "AUTO",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "08 pool_check",
+      "bundle": "auto_all",
+      "instrument": "pool_ingame.eps afterTriggerExec 끝에서 판정 변수들 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "B15-4",
+     "items": [
+      {
+       "kind": "check",
+       "name": "final.B15-4.keep"
+      },
+      {
+       "kind": "mark",
+       "name": "final.B15-4.time",
+       "equals": 777
+      },
+      {
+       "kind": "mark",
+       "name": "final.B15-4.supply",
+       "equals": 7
+      },
+      {
+       "kind": "mark",
+       "name": "final.B15-3.max",
+       "equals": 25600
+      },
+      {
+       "kind": "mark",
+       "name": "datpatch.B15-4.time",
+       "equals": 777,
+       "suite": "datpatch"
+      },
+      {
+       "kind": "mark",
+       "name": "datpatch.B15-4.supply",
+       "equals": 7,
+       "suite": "datpatch"
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch_mem units.dat timeCost·supplyUsed 칸 (바꾼 유닛)"
+      ],
+      "expect": "시작 목록으로 바꾼 값이 몇 분 뒤에도 그대로(게임이 되돌리면 기록). 저장·불러오기 뒤 값은 사람이 저장/불러오기를 한 뒤 자동 비교",
+      "done_marker": "통합 맵: aa.datpatch.end > 0 (phase 5 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): 게임 프레임 >= 2880 (2분)",
+      "category": "AUTO",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "04 datpatch_check",
+      "bundle": "auto_all (시간 부분; 저장·불러오기 부분은 별도)",
+      "extra": [
+       "AUTO_ASSIST"
+      ],
+      "instrument": "예제가 timeCost·supplyUsed 를 바꾸지 않는다 → 시작 목록에 추가 + 칸 감시"
+     }
+    }
+   ]
+  },
+  {
+   "name": "assist",
+   "phase": 19,
+   "title": "사람 조작 — 채팅 한 줄 (D17-6·E6-2)",
+   "timeout_s": 120,
+   "timeout_cycles": 1800,
+   "items": [
+    {
+     "kind": "group",
+     "id": "D17-6",
+     "items": [
+      {
+       "kind": "check",
+       "name": "assist.D17-6.relayed"
+      },
+      {
+       "kind": "text",
+       "name": "assist.D17-6.line"
+      },
+      {
+       "kind": "mark",
+       "name": "assist.D17-6.raw0",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "assist.D17-6.raw4",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "assist.D17-6.raw8",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "assist.D17-6.marker",
+       "min": 0
+      },
+      {
+       "kind": "mark",
+       "name": "assist.D17-6.lines",
+       "min": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "watch m13.raw0, raw4, raw8, marker_pos, relayed",
+       "chat"
+      ],
+      "expect": "① 그 줄이 이름 없이 '안녕 éè 가나다' 로 한 셀씩 다시 드러남(스냅숏) ② 원문 앞 12바이트 3개·표식 위치 N 기록(chatmodel 수정용) ③ 보통 채팅 줄은 그대로",
+      "done_marker": "통합 맵: aa.assist.end > 0 (phase 19 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): relayed >= 1 뒤 60프레임",
+      "category": "AUTO_ASSIST",
+      "doc_section": "1.2 (필수)",
+      "required": true,
+      "map": "13 chat_check",
+      "bundle": "auto_all assist 구간(선택) / 13",
+      "notes": "사람 몫: 18초 뒤 채팅으로 '!H안녕 éè 가나다' 와 보통 채팅 한 줄",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "relayLine(): printAll 인자 3개와 i 를 전역 변수로 dbg.watch"
+     }
+    },
+    {
+     "kind": "group",
+     "id": "E6-2",
+     "items": [
+      {
+       "kind": "check",
+       "name": "assist.E6-2.pin"
+      },
+      {
+       "kind": "mark",
+       "name": "assist.E6-2.pinbad",
+       "equals": 0
+      }
+     ],
+     "checklist": true,
+     "info": {
+      "read": [
+       "chat (매 프레임)"
+      ],
+      "expect": "고정 줄 두 개가 같은 slot 에 머물고 숫자만 바뀜 — 사람이 채팅을 몇 번 친 뒤에도(자동: slot 번호 불변)",
+      "done_marker": "통합 맵: aa.assist.end > 0 (phase 19 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): 채팅 뒤 5초",
+      "category": "AUTO_ASSIST",
+      "doc_section": "1.3 (권장)",
+      "required": false,
+      "map": "25 display_check",
+      "bundle": "auto_all assist 구간(선택) / 25",
+      "notes": "사람 몫: 채팅 몇 번",
+      "extra": [
+       "VISUAL"
+      ],
+      "instrument": "채팅 스냅숏"
+     }
+    }
+   ],
+   "optional": true
+  }
+ ],
+ "items": [
+  {
+   "kind": "check",
+   "id": "G-5",
+   "name": "aa.turbo",
+   "checklist": "G-5",
+   "info": {
+    "expect": "터보([eudTurbo])가 켜져 있어 24 사이클이 게임 프레임 24~40 안에 지난다 (인게임 G-1)"
+   }
+  },
+  {
+   "kind": "mark",
+   "name": "aa.turbo.frames",
+   "id": "G-5.frames",
+   "min": 1,
+   "max": 40
+  },
+  {
+   "kind": "check",
+   "id": "clean.units",
+   "name": "aa.clean.units"
+  },
+  {
+   "kind": "check",
+   "id": "clean.switch",
+   "name": "aa.clean.switch"
+  },
+  {
+   "kind": "check",
+   "id": "clean.plot",
+   "name": "aa.clean.plot"
+  },
+  {
+   "kind": "check",
+   "id": "clean.spawn",
+   "name": "aa.clean.spawn"
+  },
+  {
+   "kind": "check",
+   "id": "clean.bullet",
+   "name": "aa.clean.bullet"
+  },
+  {
+   "kind": "mark",
+   "id": "clean.n208",
+   "name": "aa.clean.n208",
+   "min": 0
+  },
+  {
+   "kind": "mark",
+   "id": "clean.n210",
+   "name": "aa.clean.n210",
+   "min": 0
+  },
+  {
+   "kind": "mark",
+   "id": "clean.n204",
+   "name": "aa.clean.n204",
+   "min": 0
+  },
+  {
+   "kind": "mark",
+   "id": "clean.nmar",
+   "name": "aa.clean.nmar",
+   "min": 0
+  },
+  {
+   "kind": "check",
+   "id": "clean.display",
+   "name": "aa.clean.display"
+  },
+  {
+   "kind": "check",
+   "id": "cp",
+   "name": "final.cp",
+   "suite": "final"
+  },
+  {
+   "kind": "mark",
+   "name": "aa.done",
+   "id": "done",
+   "min": 1
+  },
+  {
+   "kind": "mark",
+   "name": "aa.assist.skipped",
+   "min": 0
+  },
+  {
+   "kind": "hdr",
+   "id": "local_player",
+   "field": "local_player",
+   "max": 131
+  },
+  {
+   "kind": "wall",
+   "id": "fps",
+   "metric": "fps",
+   "min": 1
+  },
+  {
+   "kind": "group",
+   "id": "D5-10",
+   "items": [
+    {
+     "kind": "wall",
+     "metric": "fps",
+     "min": 1
+    },
+    {
+     "kind": "manual",
+     "expect": "numfmt 프레임(약 31,000 트리거)에서 눈에 띄는 멈춤이 있는지 — 단독 수치가 필요하면 16 맵을 따로 연다"
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "wall: run_tests 프레임의 프레임 시간(ms)"
+    ],
+    "expect": "약 31,000 트리거 프레임의 시간 기록(묶음에서는 frame 150 으로 옮김). 체감은 사람",
+    "done_marker": "통합 맵: aa.numfmt.end > 0 (phase 9 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): m16.done",
+    "category": "AUTO",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "16 numfmt_check",
+    "bundle": "auto_all (단독 첫 프레임 수치가 필요하면 16)",
+    "notes": "통합 맵(auto_all phase 9, 150프레임)에서는 '첫 프레임' 이 아니게 됨 — 단독 판정이 필요하면 16 을 따로",
+    "extra": [
+     "VISUAL"
+    ],
+    "instrument": "없음(헤더)"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D5-2",
+   "expect": "반각 [00042] [-1,234,567] [+0,001,234]",
+   "checklist": true,
+   "info": {
+    "read": [
+     "D5-1 자체 점검 1~3번"
+    ],
+    "expect": "[00042] [-1,234,567] [+0,001,234] 가 기대 줄과 같게 보임 (바이트는 D5-1 이 판정)",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "16 numfmt_check",
+    "bundle": "auto_all visual 구간(선택) / 16",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D5-3",
+   "expect": "전각 숫자 사이 빈틈 없음, 앞 0x0D 가 자리를 차지하지 않음",
+   "checklist": true,
+   "info": {
+    "expect": "전각 숫자 사이 빈틈 없음, 앞 0x0D×4 가 자리를 차지하지 않음",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "16 numfmt_check",
+    "bundle": "auto_all visual 구간(선택) / 16",
+    "notes": "글꼴 렌더링 — 브리지로 판단 불가",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D5-4",
+   "expect": "자리마다 색 P6 갈색 … P1 빨강",
+   "checklist": true,
+   "info": {
+    "expect": "자리마다 색 P6 갈색 … P1 빨강",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "16 numfmt_check",
+    "bundle": "auto_all visual 구간(선택) / 16",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D5-5",
+   "expect": "만 단위 색이 옛 DPS 화면과 같음",
+   "checklist": true,
+   "info": {
+    "expect": "만 단위 색이 옛 DPS 화면과 같음",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "16 numfmt_check",
+    "bundle": "auto_all visual 구간(선택) / 16",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D5-6",
+   "expect": "[12.5] [1234.567] [막대 앞 3개 초록] [05]",
+   "checklist": true,
+   "info": {
+    "expect": "[12.5] [1234.567] [막대 앞 3개 초록] [05]",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "16 numfmt_check",
+    "bundle": "auto_all visual 구간(선택) / 16",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D5-7",
+   "expect": "한자 글자·16진 표시",
+   "checklist": true,
+   "info": {
+    "expect": "한자 글자·16진 표시",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "16 numfmt_check",
+    "bundle": "auto_all visual 구간(선택) / 16",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D5-8",
+   "expect": "0x0D 채움 고정 폭이 옛 DisplayPrint 와 같은 간격",
+   "checklist": true,
+   "info": {
+    "expect": "0x0D 채움 고정 폭이 옛 DisplayPrint 와 같은 간격(옛 맵과 나란히)",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "16 numfmt_check",
+    "bundle": "auto_all visual 구간(선택) / 16",
+    "notes": "E6-7 과 같은 질문(0x0D 폭) — 한 번만 보면 둘 다 답이 됨",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D6-1",
+   "expect": "mcf 판 장식이 DPS강화하기·UE_RE 화면과 같음",
+   "checklist": true,
+   "info": {
+    "expect": "mcf 판 장식이 DPS강화하기·UE_RE 화면과 같음",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "09 strdesign_check",
+    "bundle": "auto_all visual 구간(선택) / 09",
+    "notes": "바이트는 에뮬레이터가 원본 Lua 와 대조함 — 남은 건 글꼴·색",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D6-2",
+   "expect": "seed 판 장식이 theSeed·Stella_II 와 같음",
+   "checklist": true,
+   "info": {
+    "expect": "seed 판 장식이 theSeed·Stella_II 와 같음",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "09 strdesign_check",
+    "bundle": "auto_all visual 구간(선택) / 09",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D6-3",
+   "expect": "respect 판, \\x13 줄 가운데 정렬",
+   "checklist": true,
+   "info": {
+    "expect": "respect 판, \\x13 줄 가운데 정렬",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "09 strdesign_check",
+    "bundle": "auto_all visual 구간(선택) / 09",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D6-4",
+   "expect": "memory 판, \\r\\r 뒤 \\x13 가운데 정렬",
+   "checklist": true,
+   "info": {
+    "expect": "memory 판, \\r\\r 뒤 \\x13 가운데 정렬",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "09 strdesign_check",
+    "bundle": "auto_all visual 구간(선택) / 09",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "D6-5",
+   "expect": "\\x13 두 번·오른쪽 정렬·줄바꿈 장식",
+   "checklist": true,
+   "info": {
+    "expect": "\\x13 두 번·오른쪽 정렬·줄바꿈 장식",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): -",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "09 strdesign_check",
+    "bundle": "auto_all visual 구간(선택) / 09",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "E6-7",
+   "expect": "'|-10|1234만5678|12.5|42|42|' 대괄호 사이에 빈틈 없음",
+   "checklist": true,
+   "info": {
+    "expect": "'|-10|1234만5678|12.5|42|42|' 대괄호 사이에 빈틈 없음(0x0D 가 폭을 차지하지 않음)",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): page 5",
+    "category": "VISUAL",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "25 display_check",
+    "bundle": "auto_all visual 구간(선택) / 25",
+    "notes": "글꼴 렌더링 — 브리지로 판단 불가. D5-8 과 같은 질문",
+    "instrument": "없음"
+   }
+  },
+  {
+   "kind": "manual",
+   "id": "E6-6",
+   "expect": "임무 목표 창을 연 채로 카운터가 바뀌는지 (F10 → 임무 목표)",
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m25.frame"
+    ],
+    "expect": "임무 목표 창을 연 채로 카운터가 바뀌는지, 다시 열 때만 바뀌는지",
+    "done_marker": "통합 맵: aa.visual.end > 0 (phase 20 끝 프레임). 원래 맵 기준(프레임은 phase 시작부터 셈): page 8",
+    "category": "VISUAL",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "25 display_check",
+    "bundle": "auto_all visual 구간(선택) / 25",
+    "notes": "사람 몫: F10 → 임무 목표",
+    "instrument": "없음"
+   }
+  }
+ ]
+}

@@ -1,0 +1,239 @@
+// auto_all phase 17 `chat` (프레임 3400~4900) + 19 `assist`(D17-6) — examples/chat_ingame.eps 에서 옮기고 계측했다
+// (D17-1·2·3·4·5·7·8·9 / assist: D17-6). cf = 이 단계 안 프레임 1부터.
+// 판정은 **드러난 앞끝 셀 번호**(aa.front — 셀 1..52 가운데 빈칸이 아닌 가장 큰 번호)와 줄 글 스냅숏으로 한다.
+// 이 창에서는 진행기·다른 단계가 줄을 내지 않는다(aa.quiet = 1) — D17-4·5 판정이 흔들리지 않게.
+import eudext.chat as chat;
+import eudext.local as local;
+import eudext.dbg as dbg;
+import aa_common as aa;
+
+var phaseA = 0;                                   // 진행기가 chat·assist 창에서 켠다 (둘이 같은 프레임에 돌지 않게)
+var phaseB = 0;
+const fast = chat.Typewriter(enable=phaseA);
+const slow = chat.Typewriter(enable=phaseB, every=2, sound="sound\\glue\\bnetclick.wav");
+
+const LONG_EVEN = "\x04[D17-4] even slot: expect 12 chars after colon: " + "\x04" * 151 + "0123456789ABCDEF";
+const LONG_ODD = "\x04[D17-4] odd slot: expect 14 chars after colon: " + "\x04" * 152 + "0123456789ABCDEF";
+
+var frame, lastNext, relayed;
+var s1, s2a, s2b, s2c, s3, s4, s5, s7, s8;
+var f1a, f1b, f2a, f2b, f2c, f5a, f5b, f5c, f7a, nulOk, gone, userSeen;
+var raw0, raw4, raw8, markerPos, relaySlot;
+// 줄 주소(0x640B60 + 218·slot)는 홀수 slot 에서 4의 배수가 아니다 → 정렬된 Db 버퍼로 옮겨 놓고 스냅숏한다
+const buf1 = Db(224);
+const buf2a = Db(224);
+const buf2b = Db(224);
+const buf2c = Db(224);
+const buf3 = Db(224);
+const buf4 = Db(224);
+const buf5 = Db(224);
+const buf7 = Db(224);
+const buf6 = Db(224);
+
+dbg.snapshot_text("chat.D17-1.line", buf1, 56, every=0, suite="chat");
+dbg.snapshot_text("chat.D17-2.line1", buf2a, 48, every=0, suite="chat");
+dbg.snapshot_text("chat.D17-2.line2", buf2b, 48, every=0, suite="chat");
+dbg.snapshot_text("chat.D17-2.line3", buf2c, 48, every=0, suite="chat");
+dbg.snapshot_text("chat.D17-3.line", buf3, 48, every=0, suite="chat");
+dbg.snapshot_text("chat.D17-4.line", buf4, 56, every=0, suite="chat");
+dbg.snapshot_text("chat.D17-5.line", buf5, 56, every=0, suite="chat");
+dbg.snapshot_text("chat.D17-7.line", buf7, 56, every=0, suite="chat");
+dbg.snapshot_text("assist.D17-6.line", buf6, 56, every=0, suite="assist");
+
+function grab(dst, slot, n) {                     // 줄 하나를 버퍼로 옮긴다 (스냅숏은 버퍼를 읽는다)
+    memcpy(dst, 0x640B60 + slot * 218, n);
+}
+
+function lineOf(slot) {
+    return 0x640B60 + slot * 218;
+}
+
+function nextSlot(slot) {
+    if (slot == 10) { return 0; }
+    return slot + 1;
+}
+
+function relayLine(s) {                           // 사용자 채팅 줄 앞(이름)을 지우고 "\r\r!H…" 로 당긴다 (로컬, 표시 전용)
+    const p = chat.line_ptr(s);
+    var i = 2;
+    while (i < 60) {
+        const b = bread(p + i);
+        if (b == 0) break;
+        if (b == 0x21 && bread(p + i + 1) == 0x48) {
+            if (i == 2) break;
+            raw0 = dwread(p);
+            raw4 = dwread(p + 4);
+            raw8 = dwread(p + 8);
+            markerPos = i;
+            printAll("\x04[D17-6] 채팅 줄 원문 앞 12바이트 {:x} {:x} {:x} / 표식 위치 {}", raw0, raw4, raw8, i);
+            memcpy(p + 2, p + i, 216 - i);
+            bwrite(p, 13);
+            bwrite(p + 1, 13);
+            bwrite(p + 217, 0);
+            relayed += 1;
+            relaySlot = s;
+            break;
+        }
+        i += 1;
+    }
+}
+
+function relay() {
+    const nxt = dwread(0x640B58);
+    var s = lastNext;
+    var guard = 0;
+    while (s != nxt && guard < 11) {
+        relayLine(s);
+        userSeen += 1;
+        s += 1;
+        if (s == 11) s = 0;
+        guard += 1;
+    }
+    lastNext = nxt;
+}
+
+function tick() {                                 // 진행기가 chat·assist 창에서 매 프레임 부른다
+    local.begin();
+    relay();
+    local.end();
+    fast.tick();
+    slow.tick();
+}
+
+function enable(a, b) {
+    phaseA = a;
+    phaseB = b;
+}
+
+function assist_capture() {                       // assist 단계 끝: 사용자 줄 스냅숏·값
+    grab(buf6, relaySlot, 218);
+    dbg.capture("assist.D17-6.line");
+    dbg.mark("assist.D17-6.relayed", relayed, suite="assist");
+    dbg.mark("assist.D17-6.raw0", raw0, suite="assist");
+    dbg.mark("assist.D17-6.raw4", raw4, suite="assist");
+    dbg.mark("assist.D17-6.raw8", raw8, suite="assist");
+    dbg.mark("assist.D17-6.marker", markerPos, suite="assist");
+    dbg.mark("assist.D17-6.lines", userSeen, suite="assist");
+    dbg.check("assist.D17-6.relayed", relayed >= 1, suite="assist");
+}
+
+function step(f) {                                // phase 17: cf = f − 3399
+    const cf = f - 3399;
+    frame = cf;
+    if (cf == 24) {
+        DoActions(DisplayTextAll("\x04[D17-0] eudext 채팅 확인 — 줄머리 [D17-n] 을 보고 알려 주세요"));
+        setcurpl2cpcache();
+    }
+    if (cf == 48) {
+        s1 = dwread(0x640B58);
+        DoActions(DisplayTextAll(fast.mark("\x13\x04[D17-1] 가운데 정렬 — 한 글자씩: 가나다라마바사 ABC")));
+        setcurpl2cpcache();
+    }
+    if (cf == 58) { f1a = aa.front(s1); }
+    if (cf == 118) {
+        f1b = aa.front(s1);
+        grab(buf1, s1, 218);
+        dbg.capture("chat.D17-1.line");
+        dbg.mark("chat.D17-1.front10", f1a, suite="chat");
+        dbg.mark("chat.D17-1.front70", f1b, suite="chat");
+        dbg.check("chat.D17-1.reveal", f1a >= 5 && f1a <= 11 && f1b >= 30 ? 1 : 0, suite="chat");
+    }
+    if (cf == 120) {
+        s2a = dwread(0x640B58);
+        s2b = nextSlot(s2a);
+        s2c = nextSlot(s2b);
+        DoActions(DisplayTextAll(fast.mark("\x07[D17-2] 첫째 줄 (짝·홀 slot)\n\x1f[D17-2] 둘째 줄\n\x04[D17-2] 셋째 줄 — 모두 표식 없이")));
+        setcurpl2cpcache();
+    }
+    if (cf == 130) {
+        f2a = aa.front(s2a);
+        f2b = aa.front(s2b);
+        f2c = aa.front(s2c);
+        dbg.mark("chat.D17-2.front1", f2a, suite="chat");
+        dbg.mark("chat.D17-2.front2", f2b, suite="chat");
+        dbg.mark("chat.D17-2.front3", f2c, suite="chat");
+        dbg.check("chat.D17-2.same", f2a == f2b && f2b == f2c && f2a >= 5 ? 1 : 0, suite="chat");
+    }
+    if (cf == 190) {
+        grab(buf2a, s2a, 190);
+        grab(buf2b, s2b, 190);
+        grab(buf2c, s2c, 190);
+        dbg.capture("chat.D17-2.line1");
+        dbg.capture("chat.D17-2.line2");
+        dbg.capture("chat.D17-2.line3");
+    }
+    if (cf == 192) {
+        s3 = dwread(0x640B58);
+        DoActions(DisplayTextAll(fast.mark("\x04[D17-3] 2바이트 UTF-8: é ñ ü ß ç ø Ω — 깨지지 않으면 정상")));
+        setcurpl2cpcache();
+    }
+    if (cf == 272) {
+        grab(buf3, s3, 190);
+        dbg.capture("chat.D17-3.line");
+    }
+    if (cf == 288) {
+        local.begin();
+        s4 = dwread(0x640B58);
+        if (s4 % 2 == 0) { DoActions(DisplayTextAll(LONG_EVEN)); } else { DoActions(DisplayTextAll(LONG_ODD)); }
+        setcurpl2cpcache();
+        local.end();
+    }
+    if (cf == 300) {
+        const p = lineOf(s4);
+        nulOk = 0;
+        if (s4 % 2 == 0) {
+            if (bread(p + 212) == 0) { nulOk = 1; }
+        } else {
+            if (bread(p + 214) == 0) { nulOk = 1; }
+        }
+        grab(buf4, s4, 218);
+        dbg.capture("chat.D17-4.line");
+        dbg.mark("chat.D17-4.slot", s4, suite="chat");
+        dbg.mark("chat.D17-4.nul", nulOk, suite="chat");
+        dbg.check("chat.D17-4.nul", nulOk == 1, suite="chat");
+    }
+    if (cf == 360) {
+        s5 = dwread(0x640B58);
+        DoActions(DisplayTextAll(fast.mark("\x04[D17-5] 52칸 한도: " + "0123456789" * 6)));
+        setcurpl2cpcache();
+    }
+    if (cf == 365) { f5a = aa.front(s5); }
+    if (cf == 385) { f5b = aa.front(s5); }
+    if (cf == 430) {
+        f5c = aa.front(s5);
+        grab(buf5, s5, 218);
+        dbg.capture("chat.D17-5.line");
+        dbg.mark("chat.D17-5.front", f5c, suite="chat");
+        dbg.mark("chat.D17-9.delta", f5b - f5a, suite="chat");
+        dbg.check("chat.D17-5.limit", f5c == 52, suite="chat");
+        dbg.check("chat.D17-9.speed", f5b - f5a == 20, suite="chat");
+    }
+    if (cf == 960) {
+        phaseA = 0;
+        phaseB = 1;
+        s7 = dwread(0x640B58);
+        DoActions(DisplayTextAll(slow.mark("\x04[D17-7] 소리 판: 2프레임에 한 글자, 글자마다 딸깍, 공백은 조용")));
+        setcurpl2cpcache();
+    }
+    if (cf == 980) {
+        f7a = aa.front(s7);
+        dbg.mark("chat.D17-7.front20", f7a, suite="chat");
+        dbg.check("chat.D17-7.pace", f7a >= 6 && f7a <= 12 ? 1 : 0, suite="chat");
+    }
+    if (cf == 1060) {
+        grab(buf7, s7, 218);
+        dbg.capture("chat.D17-7.line");
+    }
+    if (cf == 1080) {
+        s8 = dwread(0x640B58);
+        DoActions(DisplayTextAll(slow.mark("\x04[D17-8] 끝난 줄도 시간이 지나면 보통 채팅처럼 사라지면 정상")));
+        setcurpl2cpcache();
+    }
+    if (cf >= 1140 && cf <= 1499) {
+        if (gone == 0 && bread(lineOf(s8)) == 0) { gone = cf - 1080; }
+    }
+    if (cf == 1500) {
+        dbg.mark("chat.D17-8.gone", gone, suite="chat");
+        dbg.mark("chat.slots", s1 * 100 + s4, suite="chat");
+    }
+}

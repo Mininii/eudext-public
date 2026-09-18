@@ -1,0 +1,35 @@
+// eudext.bgm 예제 (epScript) — local 모드 재생기: 곡 표 선언, 요청·queue·조각·돌려 쓰기·반복.
+// 빌드: python eudext/examples/bgm_ingame_build.py --example --work <작업 폴더>
+//   (소리 파일을 합성해 이 파일 옆 bgm_example_snd 폴더에 두고 euddraft 로 빌드한다. 저장소에는 소리 파일이 없다.
+//    tools/build.py 로 이 폴더의 eds 를 바로 빌드하면 소리 파일이 없어 "소리 파일을 찾을 수 없습니다" 오류가 난다)
+// 기준 맵 testing/base.scx, 혼자 연다. 가장 빠름 속도 기준 약 1초 뒤 한 음 → 조각 3개 → 8초쯤 두 음을 하나씩 → 13초부터 반복음.
+import eudext.bgm as bgm;
+import eudext.local as local;
+
+const _dir = bgm.set_dir("bgm_example_snd");                  // 상대 경로 = 이 파일 옆 폴더
+const OP = bgm.track("bgm_op.wav");                           // 길이 자동 측정, MPQ 이름 staredit\wav\bgm_op.wav
+const LOOPED = bgm.track("bgm_loop.wav", trim_ms=10);         // 자동 길이 − 10ms
+const PIECES = bgm.chunks("bgm_piece_{:02d}.wav", 1, 4);      // 조각 3개 이어 재생 (조각마다 실측 길이)
+const ROT = bgm.rotation(list("bgm_rot1.wav", "bgm_rot2.wav"), length_ms=500);   // 요청마다 번갈아
+const player = bgm.Player(mode="local", targets="all", busy="queue");           // 재생 중 요청은 끝난 뒤에
+var frame;
+
+function beforeTriggerExec() {
+    player.tick();                                            // 사이클마다 한 번 (시계도 여기서 갱신)
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 24) { player.request(OP); }
+    if (frame == 30) { player.request(PIECES); }              // OP 가 끝나면 이어서 (queue)
+    if (frame == 200) { player.request(ROT); }
+    if (frame == 240) { player.request(ROT); }                // 다음 파일
+    if (frame == 300) { player.loop(LOOPED, force=True); }    // 바로 바꾸고, 끝나면 다시
+    if (bgm.clock.half()) {                                   // 두 사이클에 한 번
+        local.begin();                                        // 표시 전용 (local 모드 상태는 로컬 값)
+        if (player.current() == PIECES) {
+            printAll("조각 {} / 남은 {} ms", player.chunk(), player.remaining());
+        }
+        local.end();
+    }
+}

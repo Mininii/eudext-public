@@ -1,0 +1,95 @@
+// eudext.datpatch 인게임 확인 맵(계측판) — docs/INGAME_CHECKLIST.md 의 B15-1·3·4·10
+// 빌드: python eudext/tools/ingame_maps.py --out <폴더> datpatch   (기준 맵 testing/auto_all_base.scx — P1 파이어뱃 한 기)
+// 혼자(P1) 연다. 원래 04 맵(datpatch_example)은 **화면에 아무 줄도 띄우지 않아** B15-1 을 볼 수 없었다
+// (분류 문서 4절 발견 ①). 이 판은 피해 배율 표 근처(0x515B80:32)를 덤프해 화면에 띄우고 브리지로 판정한다.
+//
+// 선언(시작 1회 목록)은 auto_all phase 5 와 같다: 파이어뱃 최대 체력(B15-3), 발키리 timeCost·supplyUsed(B15-4),
+// 유닛 0·1 requirementOffset 매 프레임(B15-10). 탄(bullet) 단계와 겹치는 선언은 넣지 않는다(발견 ②).
+import eudext.datpatch as dat;
+import eudext.dbg as dbg;
+
+const FIREBAT = 32;
+const VALKYRIE = 58;
+const VALK_TIME = 777;
+const VALK_SUPPLY = 7;
+const RATIO_DUMP = 0x515B80;
+const RATIO_A = 0x515BA0;      // 0x515B88 표기가 맞을 때 128·192·256 이 시작하는 자리
+const RATIO_B = 0x515B9C;      // 0x515B84(eudplib 주석)가 맞을 때
+const TIME_ADDR = 0x66049C;    // dat.addr("units", "timeCost", 58)
+const SUPPLY_ADDR = 0x663D20;  // dat.addr("units", "supplyUsed", 58) — 셋째 바이트
+const MAXHP_ADDR = 0x662350 + 4 * 32;
+const REQ0_ADDR = 0x660AE4;    // dat.addr("units", "requirementOffset", 0)
+
+dat.unit(FIREBAT).set(maxHp=100 * 256);
+dat.unit(VALKYRIE).set(timeCost=VALK_TIME, supplyUsed=VALK_SUPPLY);
+dat.every_frame().unit(0).set(requirementOffset=0);
+dat.every_frame().unit(1).set(requirementOffset=0);
+
+const dump = dbg.snapshot("m04.B15-1.dump", RATIO_DUMP, 32, every=0);
+var frame, fbEpd, start;
+
+function findUnit(kind, owner) {                 // 활성 목록(0x628430)에서 (종류, 주인) 첫 유닛의 EPD
+    var p = dwread(0x628430);
+    var guard = 0;
+    while (p != 0 && guard < 1700) {
+        const e = EPD(p);
+        if (wread_epd(e + 25, 0) == kind && bread_epd(e + 19, 0) == owner) { return e; }
+        p = dwread_epd(e + 1);
+        guard += 1;
+    }
+    return 0;
+}
+
+function ratioStart() {
+    if (dwread(RATIO_A) == 128 && dwread(RATIO_A + 4) == 192 && dwread(RATIO_A + 8) == 256) { return RATIO_A; }
+    if (dwread(RATIO_B) == 128 && dwread(RATIO_B + 4) == 192 && dwread(RATIO_B + 8) == 256) { return RATIO_B; }
+    return 0;
+}
+
+function readValues(tag) {
+    const tc = wread(TIME_ADDR);
+    const su = bread(SUPPLY_ADDR + 2);
+    const mx = dwread(MAXHP_ADDR);
+    const r0 = wread(REQ0_ADDR);
+    if (tag == 1) {
+        dbg.mark("m04.B15-4.time", tc);
+        dbg.mark("m04.B15-4.supply", su);
+        dbg.mark("m04.B15-3.max", mx);
+        dbg.mark("m04.B15-10.req0", r0);
+        dbg.check("m04.B15-10.req", r0 == 0);
+    } else {
+        dbg.check("m04.B15-4.keep", tc == VALK_TIME && su == VALK_SUPPLY && mx == 100 * 256 ? 1 : 0);
+        printAll("\x07[B15-4] 2분 뒤 dat 칸: timeCost {} ({}) supplyUsed {} ({}) 최대 체력 {} (25600) — 그대로면 정상",
+            tc, VALK_TIME, su, VALK_SUPPLY, mx);
+    }
+}
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 24) {
+        dbg.capture("m04.B15-1.dump");
+        start = ratioStart();
+        dbg.mark("m04.B15-1.start", start);
+        dbg.check("m04.B15-1.found", start >= 1);
+        printAll("\x07[B15-1] 피해 배율 표: 0x515B9C = {} · 0x515BA0 = {} · 0x515BA4 = {} · 0x515BA8 = {}",
+            dwread(RATIO_B), dwread(RATIO_A), dwread(RATIO_A + 4), dwread(RATIO_A + 8));
+        printAll("\x07[B15-1] 128·192·256(폭발형 × 소형·중형·대형)이 시작하는 자리 = {} — 0x515BA0(5331872) 이면 표 머리가 0x515B88, 0x515B9C(5331868) 이면 0x515B84",
+            start);
+        readValues(1);
+        fbEpd = findUnit(FIREBAT, 0);
+        dbg.mark("m04.B15-3.found", fbEpd != 0 ? 1 : 0);
+        if (fbEpd != 0) {
+            const hp = dwread_epd(fbEpd + 2);
+            dbg.mark("m04.B15-3.hp", hp);
+            printAll("\x07[B15-3] 미리 놓인 파이어뱃 체력 {} / 최대 {} (1/256 단위 — 12800·25600 이면 현재 체력 그대로)",
+                hp, dwread(MAXHP_ADDR));
+        }
+        printAll("\x07[B15-10] 유닛 0·1 requirementOffset = {} · {} (0·0 — 매 프레임 목록이 도는지)",
+            wread(REQ0_ADDR), wread(REQ0_ADDR + 2));
+    }
+    if (frame == 2880) {                          // 2분 뒤 (터보 기준 1프레임 = 1사이클)
+        readValues(2);
+        dbg.mark("done");
+        printAll("\x07[B15-*] 확인 끝 — 결과를 알려 주세요 (저장·불러오기 뒤 값은 저장했다가 다시 불러와 보세요)");
+    }
+}

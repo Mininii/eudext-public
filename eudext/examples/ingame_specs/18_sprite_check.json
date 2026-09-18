@@ -1,0 +1,351 @@
+{
+ "format": "eudext-ingame-spec",
+ "version": 1,
+ "map": "18_sprite_check",
+ "title": "28장 스프라이트·CGRP (F21, 위험 — 언리미터)",
+ "timeout_s": 600,
+ "items": [
+  {
+   "kind": "group",
+   "id": "F21-1",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m18.dotMade",
+     "equals": 16
+    },
+    {
+     "kind": "mark",
+     "name": "m18.dotZero",
+     "equals": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m18.bounceE",
+     "min": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m18.dotMade, dotZero, bounceE",
+     "watch_mem 점 16개의 스프라이트 존재(가능하면)"
+    ],
+    "expect": "만듦 16 실패 0, bounceE ≠ 0 (자동). 점이 보이고 안 움직이고 20초 뒤에도 남음, 높이별 겹침, 속도 1280 스프라이트 움직임은 눈",
+    "done_marker": "frame >= 264",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "18 sprite_check",
+    "bundle": "18 sprite (위험)",
+    "risk": "18 맵 전체가 [unlimiter] + 영구 스프라이트 + (53초) 유닛 칸 가득 채우기",
+    "extra": [
+     "VISUAL",
+     "AUTO"
+    ],
+    "instrument": "f1/f1b 값 dbg.watch"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F21-2",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m18.stormE",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m18.stormE2",
+     "min": 1
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m18.stormE, stormE2"
+    ],
+    "expect": "epd ≠ 0 둘 다(자동), 스톰 모양·수명 30/60 차이(눈)",
+    "done_marker": "frame >= 150",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "18 sprite_check",
+    "bundle": "18 sprite (위험)",
+    "risk": "18 맵 전체가 [unlimiter] + 영구 스프라이트 + (53초) 유닛 칸 가득 채우기",
+    "extra": [
+     "VISUAL",
+     "AUTO"
+    ],
+    "instrument": "값 dbg.watch"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F21-3",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m18.usE",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m18.usDC",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m18.usE4",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m18.usMoving",
+     "min": 0
+    },
+    {
+     "kind": "dwords",
+     "name": "m18.sel"
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m18.usE, dc_bit, e4",
+     "watch m18.usE_order[프레임] (수명 96 뒤 0)",
+     "watch_mem 0x6284B8:12 (드래그 선택 결과)",
+     "watch m18.usMoving"
+    ],
+    "expect": "+0xDC 0x100 켜짐·+0xE4 0, 약 96프레임 뒤 칸 비움, 드래그 선택에 안 잡힘(선택 표 자동), 2100 레이스는 잡힘, 움직이는 레이스 61번. 클로킹 소리·끊김 없는 움직임은 눈·귀",
+    "done_marker": "frame >= 200",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "18 sprite_check",
+    "bundle": "18 sprite (위험)",
+    "notes": "사람 몫: 드래그·클릭",
+    "risk": "18 맵 전체가 [unlimiter] + 영구 스프라이트 + (53초) 유닛 칸 가득 채우기",
+    "extra": [
+     "VISUAL",
+     "AUTO_ASSIST",
+     "AUTO"
+    ],
+    "instrument": "값·선택 표 dbg.watch"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F21-4",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m18.scanLeft",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "peek 0x582324 + 12*u + p (전체 유닛 수 표, 미러) (스캐너 스윕 33, P1)"
+    ],
+    "expect": "남은 스캐너 유닛 1(마지막 remove=False 만) — 자동. 스캔 모양은 눈",
+    "done_marker": "frame >= 180",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "18 sprite_check",
+    "bundle": "18 sprite (위험)",
+    "risk": "18 맵 전체가 [unlimiter] + 영구 스프라이트 + (53초) 유닛 칸 가득 채우기",
+    "extra": [
+     "VISUAL",
+     "AUTO"
+    ],
+    "instrument": "없음(수 표 peek)"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F21-5",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m18.recE",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m18.recE2",
+     "min": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m18.marineX",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m18.marineY",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m18.recE, recE2, marine_x, marine_y (f5check)"
+    ],
+    "expect": "epd ≠ 0, 마린이 (3413, 3413) 근처(±64)로 옮겨졌으면 '끌려옴' 기록(자동). 리콜 모양은 눈",
+    "done_marker": "frame >= 228",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "18 sprite_check",
+    "bundle": "18 sprite (위험)",
+    "risk": "18 맵 전체가 [unlimiter] + 영구 스프라이트 + (53초) 유닛 칸 가득 채우기",
+    "extra": [
+     "VISUAL",
+     "AUTO"
+    ],
+    "instrument": "f5check 값 dbg.watch"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F21-6",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m18.paintDone",
+     "equals": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m18.drawn",
+     "equals": 120
+    },
+    {
+     "kind": "mark",
+     "name": "m18.dropped",
+     "equals": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m18.paintDone, drawn, total, dropped"
+    ],
+    "expect": "다 그림 1, 점 120/120, 실패 0 (자동). 색·모양은 눈(사진)",
+    "done_marker": "frame >= 360",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "18 sprite_check",
+    "bundle": "18 sprite (위험)",
+    "risk": "18 맵 전체가 [unlimiter] + 영구 스프라이트 + (53초) 유닛 칸 가득 채우기",
+    "extra": [
+     "VISUAL",
+     "AUTO"
+    ],
+    "instrument": "값 dbg.watch"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F21-7",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m18.userDone",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m18.userDrawn",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m18.userTotal",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m18.hdrW",
+     "min": 0
+    },
+    {
+     "kind": "mark",
+     "name": "m18.hdrH",
+     "min": 0
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m18.userDone, drawn, total, dropped",
+     "watch 헤더 풀이 값(W, H, 점 크기, Fill, 이미지, 높이)"
+    ],
+    "expect": "헤더 값 = CS_Photo 입력값(자동 대조 — 입력값을 사람이 알려 줘야 함), 다 그림 1·실패 0, 그림이 원본 BMP 와 같음(눈)",
+    "done_marker": "frame >= 600",
+    "category": "CRASH_RISK",
+    "doc_section": "1.2 (필수)",
+    "required": true,
+    "map": "18 sprite_check",
+    "bundle": "18 sprite (위험)",
+    "notes": "CS_Photo 로 만든 sprite_user.cgrp + 다시 빌드 필요",
+    "risk": "18 맵 전체가 [unlimiter] + 영구 스프라이트 + (53초) 유닛 칸 가득 채우기",
+    "extra": [
+     "EXTERNAL",
+     "VISUAL",
+     "AUTO"
+    ],
+    "instrument": "summary() 에 쓰는 값을 dbg.watch"
+   }
+  },
+  {
+   "kind": "group",
+   "id": "F21-9",
+   "items": [
+    {
+     "kind": "mark",
+     "name": "m18.fullZero",
+     "equals": 1
+    },
+    {
+     "kind": "mark",
+     "name": "m18.fillMade",
+     "min": 0
+    },
+    {
+     "kind": "wall",
+     "metric": "fps",
+     "min": 0.2
+    }
+   ],
+   "checklist": true,
+   "info": {
+    "read": [
+     "watch m18.fillMade, a, b, c, d, fullZero",
+     "hdr:seq 증가 + wall (2초 이상 seq 정지 = 멈춤, 블록 사라짐 = 게임 종료/튕김)"
+    ],
+    "expect": "storm·perma·unit_sprite·recall 모두 0, fullZero 1, 그 뒤 seq 계속",
+    "done_marker": "frame >= 700",
+    "category": "CRASH_RISK",
+    "doc_section": "1.3 (권장)",
+    "required": false,
+    "map": "18 sprite_check",
+    "bundle": "18 sprite (위험)",
+    "risk": "유닛 칸 가득 + 스프라이트 생성(언리미터 맵)",
+    "extra": [
+     "AUTO"
+    ],
+    "instrument": "f9 값 dbg.watch"
+   }
+  }
+ ],
+ "done": [
+  "done"
+ ],
+ "stall_s": 30
+}

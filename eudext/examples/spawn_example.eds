@@ -1,0 +1,17 @@
+:: eudext.spawn 예제 빌드 설정 (euddraft 0.11.0.1)
+:: 저장소 밖에서 빌드한다: python eudext/tools/build.py euddraft eudext/examples/spawn_example.eds --work <작업 폴더>
+:: lupa(도형 계산)는 부트 중에 불러 둔다 → Preload : shape. VenvSite 를 적지 않으면 shape 가 lupa 폴더를 찾는다
+:: (EUDEXT_LUPA_SITE → 저장소 .tools/euddraft_site → ~/.venvs/euddraft011_site). 다른 곳이면 'VenvSite : <폴더>' 를 더한다.
+
+[main]
+input : ../testing/base.scx
+output : spawn_example_out.scx
+
+[../boot.py]
+EudextRoot : ../..
+Preload : shape, spawn
+
+[spawn_example.eps]
+
+[freeze]
+freeze : 0

@@ -1,0 +1,57 @@
+// eudext.misc.ObserverChat 인게임 확인 맵 — docs/INGAME_CHECKLIST.md 의 F19-* (조각: WP19 ingame.md)
+// 빌드: python eudext/tools/build.py euddraft eudext/examples/misc_ingame.eds --work <작업 폴더>
+//
+// 이 맵은 **2인 + 관전자 2명 이상**이 필요하다(관전자 채팅 확인). 방법:
+//   1) 나온 misc_ingame_out.scx 를 SC:R 사용자 지정 게임 방에 올린다(기준 맵 testing/base_multi.scx = P1~P4 사람).
+//   2) 사람 2명 이상 + **관전자 2명 이상**(방 설정에서 "관전자"로 입장 — 슬롯 128~131)이 들어간다.
+//   3) 각 관전자가 채팅창을 닫은 채 END(관전자에게)/HOME(전체에게)/INSERT(대상없음) 를 누르고,
+//      채팅창을 열어 실제로 누구에게 채팅이 가는지 확인한다.
+//
+// 확인 항목 (줄머리 [F19-n]):
+//   [F19-1] 관전자 2번(129)·3번(130)·4번(131)에서도 키를 눌러 모드를 두 번 이상 바꿀 수 있는가 (원본 버그 B1 수정).
+//   [F19-1] 관전자 PC 의 0x512684 가 슬롯마다 128~131 로 다른가 (모두 128 이면 B1 이 드러나지 않는다).
+//   [F19-5] 관전자 안내 문구·button3.wav 소리가 나는가.
+import eudext.misc as misc;
+import eudext.dbg as dbg;
+import eudext.local as local;
+
+const obs = misc.ObserverChat();          // END=관전자·HOME=전체·INSERT=대상없음, delay 10, 문구·소리
+var frame, mode, modeChanges, wide;
+const wMode = dbg.watch("m23.chat_mode", 0x68C144);   // 채팅 대상 모드 (매 프레임 감시 — 관전자 PC 에서 바뀐다)
+
+function afterTriggerExec() {
+    frame += 1;
+    if (frame == 24) {
+        DisplayTextAll("\x04[F19-0] eudext 관전자 채팅 확인 맵 — 관전자는 END/HOME/INSERT 를 눌러 보세요");
+        setcurpl2cpcache();
+    }
+    if (frame == 72) {
+        local.begin();                    // 표시 전용 구역 (이 PC 가 관전자일 때만 안내를 한 번 더)
+        if (local.is_observer()) {
+            DisplayTextAll("\x1C[F19-1] 당신은 관전자입니다 — 채팅창을 닫고 END/HOME/INSERT 를 눌러 모드를 바꿔 보세요");
+            setcurpl2cpcache();
+        }
+        local.end();
+    }
+    obs.tick();                           // 관전자 채팅 (관전자 PC 에서만 동작)
+    local.update();                       // 엣지 캐시
+    const m = dwread(0x68C144);           // F19-1: 관전자 2~4번 PC 에서도 모드가 두 번 이상 바뀌는가
+    if (m != mode) {
+        mode = m;
+        modeChanges += 1;
+        dbg.mark("m23.mode_changes", modeChanges);
+        dbg.mark("m23.chat_mode_last", m);
+    }
+    if (frame == 120) {
+        local.begin();
+        if (misc.is_widescreen(26)) { wide = 1; }   // 26 = "Location 0"(버릴 로케이션 — 판정에만 쓴다)
+        local.end();
+        const host = misc.host_player();
+        dbg.mark("m23.host", host);
+        dbg.mark("m23.wide", wide);
+        dbg.mark("m23.screen", dwread(0x62848C));
+        dbg.mark("m23.frame", frame);
+        dbg.mark("done");
+        printAll("[F19-1b] 방장 번호 {} / [F19-3] 와이드 {} (4:3 = 0) / 화면 위치 {}", host, wide, dwread(0x62848C));
+    }
+}
