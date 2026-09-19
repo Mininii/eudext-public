@@ -183,6 +183,21 @@ TRANSPORTS = {
         note="euddraft 0.9.10.11 판 NSQC.py (0.11 번들에 없음). eudplib 0.81 에서 키 엣지·배열 출력이 깨져 데스값만 쓴다",
         array_out=False,
     ),
+    # SNQC (Sana Natori QueueCommand, MapSource/SNQC/SNQC.py 1.3). `[SNQC]` 단락은 `[MSQC]` 와 **같은 줄 문법**을
+    # 쓰고 설정 이름도 QCUnit/QCLoc/QCPlayer/QC_XY/QCDebug 를 그대로 받는다(SNQC* 별칭도 있다) — 그래서 MSQC 와
+    # 같은 성질 표를 쓴다:
+    #   array_out=True  "결과 자리에 EUDArray 이름을 쓰면 데스값 대신 그 배열[플레이어] 에 쓴다 (MSQC 와 같음)"
+    #                   (SNQC.py 줄 문법 표) — 못 받은 사이클을 -1 로 구분할 수 있으므로 걸쇠·received() 가 된다.
+    #   dword=False     `dword,` 줄 종류가 없다 (val·xy·mouse·키 줄만).
+    #   key_edges=True  KeyDown/KeyUp 을 쓴다. 1.3 이 eudplib 0.81 에서 나던 키 엣지·EUDVArray 문제를 고쳤다.
+    #   extra_guards=() MouseMoved/ScreenMoved/WideScreen 같은 NSQC 전용 가드가 없다.
+    # MSQC 와 다른 점(성질 표에는 안 들어가지만 쓸 때 알아야 하는 것): 랠리 좌표에 실어 150프레임 소실이 없고,
+    # 채널 건물은 랠리를 받는 12종이어야 한다(SNQCUnit 검사).
+    "snqc": Transport(
+        "snqc", "SNQC", "SNQC", dword=False, extra_guards=(), key_edges=True,
+        settings=("QCUnit", "QCLoc", "QCPlayer", "QC_XY", "QCDebug"),
+        note="MapSource/SNQC/SNQC.py 1.3 (euddraft 0.9.x·0.11 공용). 랠리 좌표 전송 — 150프레임 소실 없음",
+    ),
 }
 
 

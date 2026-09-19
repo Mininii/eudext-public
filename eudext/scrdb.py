@@ -730,8 +730,12 @@ class ScrDb:
             bus = sync.Bus("msqc", qc_unit=qc_unit, name=name)
         elif qc_unit is not None:
             fail("scrdb.setup: bus 를 주면 qc_unit 은 그 버스에서 정합니다")
-        if getattr(bus, "transport", None) is None or bus.transport.name != "msqc":
-            fail("scrdb.setup: bus 는 MSQC sync.Bus 여야 합니다 (%r)", bus)
+        # SCR_DB 채널은 "키 줄 + EUDArray 출력" 전송이면 된다 — MSQC 와 SNQC 가 그렇다.
+        # (SNQC 는 `[SNQC]` 단락에 같은 줄 문법·같은 설정 이름을 쓰고, 결과 자리에 EUDArray 를 받는다.)
+        # NSQC 는 데스값만 내서(array_out=False) 못 받은 사이클을 0 과 구분할 수 없으므로 막는다.
+        t = getattr(bus, "transport", None)
+        if t is None or not t.array_out:
+            fail("scrdb.setup: bus 는 EUDArray 출력 전송(MSQC·SNQC)의 sync.Bus 여야 합니다 (%r)", bus)
         self.bus = bus
         if (self.msqc_addr, self.msqc_death, self.channels) == (
                 sync.SCRDB_MSQC_ADDR, sync.SCRDB_MSQC_DEATH, sync.SCRDB_MSQC_CHANNELS):

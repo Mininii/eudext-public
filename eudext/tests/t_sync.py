@@ -129,6 +129,20 @@ def section_declare():
     ])
     ck.true("describe qc warn", "qc_unit" in sync.Bus("msqc", name="warnq").describe())
 
+    # SNQC 전송 (MapSource/SNQC/SNQC.py 1.3) — `[SNQC]` 단락이 `[MSQC]` 와 같은 줄 문법·설정 이름을 쓴다
+    _sn = sync.TRANSPORTS["snqc"]
+    ck.eq("snqc section/module", (_sn.section, _sn.module), ("SNQC", "SNQC"))
+    ck.eq("snqc flags", (_sn.dword, _sn.key_edges, _sn.array_out, sorted(_sn.extra_guards)),
+          (False, True, True, []))
+    ck.eq("snqc settings == msqc", _sn.settings, sync.TRANSPORTS["msqc"].settings)
+    _sb = sync.Bus("snqc", qc_unit=106, qc_loc=241, name="snqc1")
+    ck.eq("snqc bus pairs", _sb._pairs()[:2], [("QCUnit", "106"), ("QCLoc", "240")])
+    ck.eq("snqc eds section name", list(sync.eds_sections([_sb])), ["SNQC"])
+    # scrdb 가 받는 기준은 "EUDArray 출력" 이다 — msqc·snqc 는 되고 nsqc 는 안 된다 (scrdb.py setup)
+    ck.eq("array_out by transport",
+          {n: sync.TRANSPORTS[n].array_out for n in ("msqc", "snqc", "nsqc")},
+          {"msqc": True, "snqc": True, "nsqc": False})
+
     # 오류
     ck.raises("unknown transport", EudextError, sync.Bus, "tcp", name="e1")
     ck.raises("native not yet", EudextError, sync.Bus, "native", name="e2")
