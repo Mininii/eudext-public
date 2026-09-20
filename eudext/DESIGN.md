@@ -2543,7 +2543,7 @@ setloc_box·read_point/read_from), 빌드 오류 25종(재진입 3종·콜백 �
 
 ---
 
-### 4.14 `spawn` — G_CB 식 소환 대기열 — **WP12 완료(1단계)**
+### 4.14 `spawn` — G_CB 식 소환 대기열 — **WP12 완료(1단계)** (+ 2026-09-20 P6-c 보탬)
 
 **근거**: `G_CB_TSetSpawn` 962, `G_CB_SetSpawn` 393, `f_TempRepeat` 297, `G_CB_TScanEff` 183 등 7맵 2,048회(R1, S1 7.1). 구조: 도형을 컴파일 시점에
 번호로 등록(최대 4층) → 런타임에 소환 작업을 대기열에 넣음 → `G_CBPlot` 이 매 프레임 작업을 진행(theSeed `Engine/G_CB_Lib.lua` 2,769줄 —
@@ -2553,7 +2553,7 @@ setloc_box·read_point/read_from), 빌드 오류 25종(재진입 3종·콜백 �
 **명세(정본)**: `docs/spec/S1_gcb.md` — 정본 판은 **theSeed 판**. API·내부 구성·비용 목표는 S1 8절, 시험은 9절, 함정 대책은 10절. 아래 "S1 8절과 달라진 점" 만 다르다.
 `G_CA`(옛판)·UE_RE 판은 대상 밖(S1 1.4 — 옮길 때 단계 번호를 도형 객체로 풀어 `push`). RepeatType 은 맵마다 번호·뜻이 달라 **등록형 핸들러**다.
 
-**파일**: `eudext/spawn.py`, `tests/t_spawn.py`·`tests/t_spawn_xform.py`·`tests/ref_spawn.py`, `examples/spawn_example.{eps,eds}`,
+**파일**: `eudext/spawn.py`, `tests/t_spawn.py`·`tests/t_spawn_xform.py`·`tests/t_spawn_p6c.py`·`tests/ref_spawn.py`, `examples/spawn_example.{eps,eds}`,
 `examples/spawn_ingame.{eps,eds}`(인게임 E12).
 
 **API**
@@ -2567,9 +2567,14 @@ sp = Spawner(capacity=128, loc="GCB Src", loc2="GCB Dst", default_target="Home",
              props="energy",                     # 원본처럼 CreateUnitWithProperties(energy=100) | None = CreateUnit | UnitProperty
              on_create=None,                     # UnitData(목록) = 생성 직전 그 칸 초기화 | fn(칸 번호)
              on_full=None, debug=False,          # 넘침 문구: None = debug 면 "report" | "silent" | 함수. 넘침 카운터는 항상
+             size_div=100,                       # 크기의 **분모** (100 = 퍼센트, 256 = 옛판 CA_RatioXY). 이 값이 "그대로"
+             bounds="skip",                      # 경계 밖 점: "skip" = 버린다(기본) | "clamp" = 0~W−1·0~H−1 로 자른다
+             precise=False,                      # 회전에 고정밀 lengthdir 표 (원본 Include_CtrigPlib(…, LengthdirX=1))
+             rot3d_own=False,                    # 3D 회전 전용 엔진 (mathx.rotate3d(own=))
              unclickable=None, name="spawn")     # unclickable 은 2단계(자리만)
 
-sp.rtype("Nothing")                                   # 핸들러 없음. 번호 생략 = 1~255 중 빈 가장 작은 번호, 0 = "없음" 예약
+sp.rtype("Nothing")                                   # 핸들러 없음. 번호 생략 = 1~255 중 빈 가장 작은 번호
+sp.rtype("Attack", h, id=0)                           # 0 도 정상 번호 (옛판 G_CA) — 그 순간 "없음" 표지가 RTYPE_NONE(256)으로
 sp.rtype("Home", sp.builtin.attack_default)           # 내장 핸들러 (아래), 핸들러 목록도 된다
 @sp.rtype("Skill", id=8)
 def _skill(s):                                        # s: SpawnCtx
@@ -2586,8 +2591,10 @@ sp.push(37, ring, owner=P8,
         offset=(0, 0),      # DistanceXY — 회전 뒤 평행이동
         rtype=None,         # 등록된 이름·번호 | 변수(등록 안 된 값이면 아무것도 안 함 + debug 문구)
         order=None,         # Order.attack(x, y) | Order.patrol("Loc") | Order.move(at_unit(epd)) …
-        effect=None)        # Effect.scan(image, color=None) — 유닛 33 고정
-        # 2단계 자리(쓰면 컴파일 오류): rot3d=True, variant=…, mirror=True, Effect.frag(…), sp.rot3d
+        effect=None,        # Effect.scan(image, color=None) — 유닛 33 고정
+        rot3d=False,        # True = sp.rot3d 묶음 | Rot3D | 묶음 이름 — 2D 회전 뒤·평행이동 앞에 mathx.rotate3d
+        bounds=None)        # None = Spawner 기본 | "skip" | "clamp" (층·작업마다)
+        # 2단계 자리(쓰면 컴파일 오류): variant=…, mirror=True, Effect.frag(…)
 h = sp.job(owner=P8, center=(x, y), order=Order.attack("Boss")).layer(37, ring).layer(38, star, size=150, delay=5).push()
 sp.push_layers([(37, ring), (38, star)], owner=P8)    # 파이썬 편의
 sp.push_multi([8, 12, 2, 3], warp, center="Boss")     # 원본 CUTable·ShapeTable 모양 (도형 하나 = 모든 층, 수가 다르면 컴파일 오류)
@@ -2598,6 +2605,8 @@ sp.clear()                                            # 모든 작업(뒤 층 �
 sp.anchor.x, sp.anchor.y      # G_CB_X/Y (대입하면 값이 들어간다 — epScript `sp.anchor.x = 3072;`)
 sp.rotation                   # G_CB_RotateV (`sp.rotation += 5`)
 sp.live, sp.overflow          # 살아 있는 레코드(층) 수, 넘친 넣기 수 (EUDVariable)
+sp.rot3d; sp.rot3d_set("eff2")   # 3D 회전 각 묶음 (.xy/.yz/.zx) — **tick() 보다 앞**에서 만든다. 최대 3묶음
+sp.rtype_none                 # "핸들러 없음" 값 (보통 0, id=0 을 등록했으면 256)
 sp.preview(shape, center=(x, y), size=…, rotate=…, offset=…, rotation=…)   # 컴파일 시점 소환 좌표 목록 (문구·점검용)
 sp.preview_count(…); sp.rtype_id("Home"); sp.shapes; sp.pool; sp.ctx; sp.loc; sp.loc2; sp.map_size
 spawn.rotate_py(x, y, a, cycle), spawn.transform_py(x, y, size, rotate, cycle)   # 파이썬 계산 (CtrigAsm CA_Rotate 값)
@@ -2652,8 +2661,11 @@ function afterTriggerExec() {
   ```
   "바로 뒤 레코드 = 다음 층" 은 pool 규칙(할당 순서로 순회, 루프 중 할당은 다음 루프)과 `alloc_n` 이 층을 차례로 잡는 것에 기댄다(다음 층 핸들 필드를 두지
   않아 방문당 실행 1·층 넘김 9 절약). 여러 작업 섞기·압축·핸들러 안의 push 에서 참조 모델과 같음을 시험했다.
-- **변환**(S1 6.3): 크기 `CiDiv(x·S mod 2³², 100)`(mathx.ratio, S ≠ 100 일 때만) → 회전 CtrigAsm `CA_Rotate` 항별 자르기(mathx.Rotator(None) —
-  Spawner 마다 각 변수, 변수 각 엔진은 공유) → 평행이동 → 중심 → 경계(부호 없는 비교라 음수도 걸러짐). 경계 밖 점은 건너뛰고 진행으로 친다.
+- **변환**(S1 6.3): 크기 `CiDiv(x·S mod 2³², size_div)`(mathx.ratio, S ≠ size_div 일 때만) → 회전 CtrigAsm `CA_Rotate` 항별 자르기(mathx.Rotator(None) —
+  Spawner 마다 각 변수, 변수 각 엔진은 공유) → **3D 회전**(`rot3d=` 인 작업만 — `mathx.rotate3d`, 각은 묶음 변수라 점마다 읽는다)
+  → 평행이동 → 중심 → 경계(부호 없는 비교라 음수도 걸러짐). `bounds="skip"`(기본)이면 경계 밖 점은 건너뛰고 진행으로 치고,
+  `bounds="clamp"` 면 0~W−1·0~H−1 로 잘라 반드시 소환한다(옛판 `CA_Func`). 맵 크기는 `map_size` 가 없으면 **chk 의 DIM 섹션**에서 읽는다.
+  3D 회전·클램프도 쓴 작업이 있을 때만 코드가 나간다(안 쓰면 트리거 수가 예전과 **같다** — `t_spawn_p6c` 의 `zero_cost`).
   크기·회전 코드는 **주 함수를 다 만든 뒤 쓰인 기능만** 서브루틴에 채운다(`_compat.on_start_after_main`) — 안 쓰면 mathx 엔진(약 110KB)이 페이로드에 안 들어간다.
   주 함수 뒤에 그 기능을 쓰는 push 가 나오면 컴파일 오류.
 - **소환 루틴 세 벌**(후처리 없음 · 후처리 · 이펙트): 사이클 머리에서 flags 로 하나를 골라 점마다의 호출 트리거 대상과 돌아올 곳을 고친다(점마다 분기 없음).
@@ -3952,6 +3964,8 @@ DPS `tools/size_report.py`(Lua 스택에서 자리를 찾는 판)를 파이썬 �
 | D100 | 항목의 단계(suite) 정하기 | **코드 순서로 열린 단계**(구현) + `suite=` 인자 + 이름 앞머리(`c3.`). 실행 순서로 정하려면 매 사건마다 단계 번호를 칸에 적어야 해 비싸다 | dbg, ingame_auto |
 | D101 | 자동 판정의 멈춤 기준 | **seq 가 15초 멈추면 멈춤**(도구 `--stall`, 명세·단계 `stall_s` 가 우선). 싱글 일시 정지와 구분 못 함 | ingame_auto |
 | D102 | 확인 문서 자동 기록 | **선택 옵션**(`--write-checklist`, 빈 칸에만 `자동: 통과 (날짜)` / `자동: 실패 — 이유 (날짜)`). 사용자가 원할 때만 실제 문서에 — 이번 작업은 사본으로만 시험 | ingame_auto, MapSource 확인 문서 |
+| D103 | `spawn` P6-c 보탬(2026-09-20)의 모양 — `rot3d` 묶음을 몇 개까지, "핸들러 없음" 표지를 256 으로 옮기는 방식, `size_div` 가 `size` 의 기본값까지 바꾸는 것, `bounds` 를 층 인자로 둔 것 | **구현**: 묶음 3개(flags 2비트), `RTYPE_NONE`=256 은 **`id=0` 을 등록한 Spawner 에서만**(다른 곳은 0 그대로), `size` 생략 = `size_div`(= 크기 그대로), `bounds` 는 층·작업 인자 + `Spawner(bounds=)` 기본. 기본값은 하나도 안 바뀌었고 안 쓰면 트리거도 안 는다 | spawn, Mem2 P6-c |
+| D104 | `Spawner(precise=)` 를 둘지 — 원본이 `Include_CtrigPlib(…, LengthdirX=1)` 인 맵(Mem2)은 회전이 **고정밀 표**다. 지금까지 `spawn` 은 늘 보통 표로 돌렸다(2D `rotate` 도) | **선택지로 넣음(기본 False = 지금까지와 같음)**. **다섯 건 밖의 보탬이라 제작자 확인이 필요하다** — 빼도 ①~⑤ 는 그대로 선다 | spawn, mathx, Mem2 P6-c |
 | D97 | `_compat.refresh_mapstring_queries()` 를 `reset_build_state()` 가 늘 부르게 할지(지금은 display 를 import 한 프로세스에서만) | **늘 부르게 옮기기 권장** — 여러 번 빌드하는 시험·도구의 StringBuffer·GetMapStringAddr 주소가 첫 빌드 값으로 남는 문제(`_compat` 는 공용 파일이라 WP6b 는 덧붙이기만 했다) | _compat, 모든 시험 — **보류(2026-09-17)**: 늘 부르게 해 보니 `t_numfmt` 의 DESIGN 0.3 예 실행이 빈 출력(`b''`)이 됐다. 원인 조사 전까지 display 가 부르는 방식 유지 |
 
 ---

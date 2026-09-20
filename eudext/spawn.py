@@ -40,8 +40,9 @@ epScript (`import eudext.spawn as spawn;` — 사슬 API 가 기본형, 모듈 �
         바로 앞 레코드가 "다음 층 있음" 으로 끝났으면 이 레코드(= 그 다음 층)의 w = 2   ← 층 사이 빈 프레임 1개 (D13)
         if w == 0:
             L = 스케줄[포인터] (포인터 < 밴드 수면 +1) 또는 lm;  k = min(L, 남은 점)
-            k 번: 점 읽기 → 크기(CiDiv(x·S, 100)) → 회전(CtrigAsm CA_Rotate, 전역 회전은 점마다 sp.rotation)
-                  → 평행이동 → 중심 → 경계(X ≤ W−1, Y ≤ H−1 부호 없음) → 안이면 한 기 소환
+            k 번: 점 읽기 → 크기(CiDiv(x·S, size_div)) → 회전(CtrigAsm CA_Rotate, 전역 회전은 점마다 sp.rotation)
+                  → 3D 회전(rot3d= 인 작업만) → 평행이동 → 중심
+                  → 경계(기본 "skip": X ≤ W−1, Y ≤ H−1 부호 없음 / "clamp": 0~W−1·0~H−1 로 자름) → 한 기 소환
             w = delay;  남은 점 == 0 이면 완료(반납)
         w = max(w − 1, 0)
 
@@ -51,7 +52,9 @@ epScript (`import eudext.spawn as spawn;` — 사슬 API 가 기본형, 모듈 �
   `alloc_n` 이 층을 차례로 잡는 것에 기댄다(시험: 여러 작업 섞기·압축·핸들러 안의 push).
 - lm: "max" = 255, 0 = 자동 `n // 50 + 1`(넣을 때 계산). 도형에 LoopMax 스케줄이 있으면 스케줄이 lm 을 덮는다.
   **스케줄 포인터는 작업마다**(원본은 매 호출 1 로 되돌림 — S1 10-16, 의도된 의미로 구현). 빈 밴드(0) 사이클은 쉰다.
-- 경계 밖 점은 건너뛰고 진행으로 친다(원본과 같음). 맵 크기는 chk DIM × 32 또는 `map_size`.
+- 경계 밖 점은 건너뛰고 진행으로 친다(원본과 같음 — 기본 `bounds="skip"`). 맵 크기는 **빌드 중 chk 의 DIM 섹션을
+  읽어** 자동으로 정한다(타일 × 32). 손으로 주려면 `map_size=(W, H)`.
+  `bounds="clamp"` 는 버리는 대신 0~W−1·0~H−1 로 잘라 반드시 소환한다(옛판 G_CA `CA_Func` 의 기본).
 - 넣는 순간 해석: 중심(`None` = 그때의 `sp.anchor`, 로케이션 = 그때의 중심 (L+R)/2·(T+B)/2 0 방향), 명령 목표(같음).
   원본과 달리 로케이션 중심 모드가 anchor 를 **덮어쓰지 않는다**(S1 10-28).
 - tick 중에 넣은 작업(핸들러 안의 push)은 다음 tick 부터 돈다(pool 규칙).
@@ -80,7 +83,8 @@ epScript (`import eudext.spawn as spawn;` — 사슬 API 가 기본형, 모듈 �
 
 ## 2단계 (자리만 — 쓰면 컴파일 오류)
 
-`rot3d=True`/`sp.rot3d`, `unclickable`, `variant`(프리펑션 변형, D14), `Effect.frag`(기억의 조각), `mirror`(점대칭).
+`unclickable`, `variant`(프리펑션 변형, D14), `Effect.frag`(기억의 조각), `mirror`(점대칭).
+(`rot3d` 는 2026-09-20 에 배선했다 — `push(rot3d=True)` + `sp.rot3d`/`sp.rot3d_set()`.)
 
 ## 재진입 (DESIGN 3.3)
 
@@ -160,6 +164,7 @@ __all__ = [
     "Job",
     "Order",
     "RType",
+    "Rot3D",
     "SpawnCtx",
     "Spawner",
     "at_unit",
@@ -184,6 +189,10 @@ MRGN_EPD = EPD(MRGN_ADDR)
 BUZZ_WAV = "sound\\Misc\\Buzz.wav"
 INF_WAIT = M32  # 아직 차례가 아닌 층 (40억 프레임 뒤에나 0 이 된다)
 LM_MAX = 255
+# rtype 번호는 0~255 다. 0 을 진짜 갈래로 쓰는 맵(Mem2 의 "어택 일반" 34곳)을 위해 "핸들러 없음" 표지를 그 범위 **밖**에 둔다.
+# 기본값은 **옛날 그대로 0**(`_none_id`)이고, `rtype(…, id=0)` 을 등록한 Spawner 만 표지를 이 값으로 옮긴다.
+RTYPE_NONE = 256
+ROT3D_MAX = 3  # flags 의 2비트에 담는 3D 회전 묶음 번호 (0 = 안 씀, 1~3)
 UNIT_MAX = 226  # G_CB Call_Repeat 이 받는 유닛 범위 0 ~ 226 (GCB 699)
 UNIT_SCAN = 33  # Scanner Sweep
 SCAN_SPRITE_IMAGE = 0x666458  # sprites.dat 이미지(word) 표의 380번(스캐너 스윕) 칸 — GCB 720
@@ -197,6 +206,9 @@ F_NEXT = 0x02  # 뒤에 층이 있다
 F_ORDER = 0x0C  # 명령 속성: (SC 명령 번호 + 1) << 2 — 0 = 없음, 1 = Move, 2 = Patrol, 3 = Attack
 F_POST = 0x10  # 생성 뒤 처리(캡처·핸들러·명령)가 필요하다
 F_EFFECT = 0x20  # 스캔 이펙트 (eff 필드)
+F_CLAMP = 0x40  # 경계 밖 점을 버리지 않고 0~W−1·0~H−1 로 **클램프** (bounds="clamp")
+F_ROT3D = 0x180  # 3D 회전 묶음 번호 (0 = 안 씀, 1~ROT3D_MAX) — rot3d= 인자
+F_ROT3D_SHIFT = 7
 
 # CUnit 오프셋 (바이트, eudplib scdata 이름)
 CU_POS = 0x28
@@ -351,6 +363,11 @@ def _no_bit(var, mask):
     return var.ExactlyX(0, mask)
 
 
+def _field_eq(var, mask, value):
+    """var 의 mask 자리가 value 와 같음 → 새 조건 (여러 비트짜리 칸)."""
+    return var.ExactlyX(value, mask)
+
+
 # --- 파이썬 계산 (preview·참조와 같은 식 — CtrigAsm CA_Rotate 항별 자르기) ---
 
 
@@ -375,20 +392,26 @@ def _ld_py(r, a, cycle):
     return term(r, tbl[ci], cs), term(r, tbl[si], ss)
 
 
-def rotate_py(x, y, a, cycle=360):
-    """(x, y) 를 CtrigAsm CA_Rotate 로 돌린 부호 있는 (x', y') — preview·시험용 파이썬 계산."""
+def rotate_py(x, y, a, cycle=360, precise=False):
+    """(x, y) 를 CtrigAsm CA_Rotate 로 돌린 부호 있는 (x', y') — preview·시험용 파이썬 계산.
+
+    precise=True 는 고정밀 lengthdir 표(`Include_CtrigPlib(…, LengthdirX=1)` 을 켠 맵)와 같은 값이다.
+    """
+    if precise:
+        X, Y = mathx._rot_py(x, y, a, cycle, True)
+        return _s32(X), _s32(Y)
     xc, xs = _ld_py(x, a, cycle)
     yc, ys = _ld_py(y, a, cycle)
     return _s32(xc - ys), _s32(xs + yc)
 
 
-def transform_py(x, y, size=100, rotate=0, cycle=360):
-    """크기 → 회전 한 점의 부호 있는 좌표 (평행이동·중심 전). rotate 0 = 안 돎."""
-    if size != 100:
-        x = _tdiv(_s32(x * size), 100)
-        y = _tdiv(_s32(y * size), 100)
+def transform_py(x, y, size=100, rotate=0, cycle=360, size_div=100, precise=False):
+    """크기 → 회전 한 점의 부호 있는 좌표 (평행이동·중심 전). rotate 0 = 안 돎. size == size_div = 크기 그대로."""
+    if size != size_div:
+        x = _tdiv(_s32(x * size), size_div)
+        y = _tdiv(_s32(y * size), size_div)
     if rotate & M32:
-        x, y = rotate_py(x, y, rotate, cycle)
+        x, y = rotate_py(x, y, rotate, cycle, precise)
     return x, y
 
 
@@ -949,15 +972,51 @@ class _Builtins:
 # 작업 (여러 층)
 # =============================================================================================
 
-_LAYER_KEYS = ("owner", "lm", "delay", "size", "rotate", "rtype", "variant", "mirror")
+_LAYER_KEYS = ("owner", "lm", "delay", "size", "rotate", "rtype", "bounds", "variant", "mirror")
 _JOB_KEYS = _LAYER_KEYS + ("center", "offset", "order", "effect", "rot3d")
+
+
+class Rot3D:
+    """3D 회전 각 묶음 (xy, yz, zx) — 원본 `CA_Eff_XY`·`CA_Eff_YZ`·`CA_Eff_ZX` 자리.
+
+    `sp.rot3d`(기본 묶음) 또는 `sp.rot3d_set()`(묶음을 더 만든다 — 원본 `CA_Eff_*2` 처럼)로 얻는다. 세 각은 **점마다**
+    읽는 전역 변수라(원본과 같다) 넣은 뒤에 바꾸면 이미 돌고 있는 작업에도 바로 먹는다.
+
+    쓰는 법: `sp.rot3d.xy << 30`, `sp.rot3d.set(30, 0, 45)`, `sp.push(…, rot3d=True)`(= 기본 묶음) 또는 `rot3d=r2`
+    비용: 변수 3개. 쓰는 묶음마다 tick 사이클 머리 트리거 1
+    출처: CB Paint `CA_Rotate3D`(CBP 9883), Mem2 `func.lua:1350~1356`, S1 6.3-3·8.7
+    """
+
+    __slots__ = ("_sp", "index", "name", "xy", "yz", "zx")
+    dont_flatten = True
+
+    def __init__(self, sp, index, name):
+        self._sp = sp
+        self.index = index
+        self.name = name
+        self.xy, self.yz, self.zx = EUDVariable(), EUDVariable(), EUDVariable()
+
+    def __repr__(self):
+        return "<spawn.Rot3D %s #%d>" % (self.name, self.index)
+
+    def set(self, xy=None, yz=None, zx=None):
+        """세 각을 한 번에 넣는다(생략한 각은 그대로). 비용: 넣은 수만큼 실행 2."""
+        pairs = [(v, a) for v, a in ((self.xy, xy), (self.yz, yz), (self.zx, zx)) if a is not None]
+        if pairs:
+            SeqCompute([(v, SetTo, _u32(_num(a, "spawn.Rot3D.set", "각"))) for v, a in pairs])
+        return self
+
+    @property
+    def angles(self):
+        """(xy, yz, zx) 변수 셋."""
+        return (self.xy, self.yz, self.zx)
 
 
 class Job:
     """여러 층 작업 만들기 (`sp.job(**작업 값).layer(유닛, 도형, **층 값)….push()`).
 
-    작업 값(모든 층 공통): center, offset, order, effect, rot3d(2단계) + 층 값의 기본(owner, lm, delay, size, rotate, rtype).
-    층 값: owner, lm, delay, size, rotate, rtype (variant·mirror 는 2단계).
+    작업 값(모든 층 공통): center, offset, order, effect, rot3d + 층 값의 기본(owner, lm, delay, size, rotate, rtype, bounds).
+    층 값: owner, lm, delay, size, rotate, rtype, bounds (variant·mirror 는 2단계).
     층은 넣은 순서대로 진행한다(층 사이 빈 프레임 1개). 원본은 4층까지였지만 제한이 없다(capacity 안).
     `push()` 는 부른 자리에 넣기 코드를 낸다 — 같은 Job 을 두 번 push 하면 두 곳에 코드가 생긴다.
     인자·반환·비용: `Spawner.push` 와 같다(층마다 pool alloc 한 벌)
@@ -997,10 +1056,10 @@ class Job:
 # =============================================================================================
 
 
-def _rotator(cycle):
+def _rotator(cycle, precise=False):
     # WP9 안내: Rotator(None) 에 작업마다 set. 변수 각 엔진(본문)은 같은 주기의 모든 Rotator 가 같이 쓰고,
     # 각 변수만 Spawner 마다 따로 둔다 — 한 Spawner 의 핸들러가 다른 Spawner 를 돌려도 각이 섞이지 않게.
-    return mathx.Rotator(None, cycle=cycle)
+    return mathx.Rotator(None, cycle=cycle, precise=precise)
 
 
 _SPAWNERS = weakref.WeakSet()
@@ -1044,12 +1103,17 @@ class Spawner:
           props("energy" = UnitProperty(energy=100) — 원본과 같음 | None = CreateUnit | UnitProperty),
           on_create(생성 직전 훅: UnitData(목록) = 그 칸 초기화, 함수 = f(칸 번호) — 모든 소환이 캡처를 쓴다),
           on_full(넘침 문구: None = debug 면 "report" 아니면 "silent" | "report" | "silent" | 함수),
-          debug(넘침·빈 작업·등록 안 한 rtype 문구), name(표시용), unclickable(2단계 — None 만)
+          debug(넘침·빈 작업·등록 안 한 rtype 문구), name(표시용), unclickable(2단계 — None 만),
+          size_div(크기의 **분모** — 기본 100 = 퍼센트, 256 = 원본 `CA_RatioXY(v,256,…)`. 이 값이 "크기 그대로" 다),
+          bounds(경계 밖 점: "skip" = 버린다(기본, 지금까지의 동작) | "clamp" = 0~W−1·0~H−1 로 잘라 소환(옛판 G_CA 기본).
+                 push/layer 의 `bounds=` 로 작업마다 덮어쓸 수 있다 — 다만 **tick() 보다 앞**에서 처음 써야 한다),
+          precise(회전에 **고정밀 lengthdir 표**를 쓴다 — 원본이 `Include_CtrigPlib(…, LengthdirX=1)` 인 맵(Mem2)과 같은 값.
+                  기본 False = 지금까지의 표), rot3d_own(3D 회전 전용 엔진 — `mathx.rotate3d(own=)`. 기본 False = 공유 엔진)
     속성: `anchor`(.x/.y), `rotation`, `live`(살아 있는 레코드 수), `overflow`(넘침 누적), `shapes`, `pool`,
-          `builtin`, `ctx`(핸들러 문맥), `GLOBAL`, `default_rtype`(rtype 생략 시 — 이름·번호·None=0 없음), `loc`, `loc2`,
-          `map_size`, `rot3d`(2단계)
+          `builtin`, `ctx`(핸들러 문맥), `GLOBAL`, `default_rtype`(rtype 생략 시 — 이름·번호·None), `rtype_none`,
+          `loc`, `loc2`, `map_size`(chk DIM 에서 자동), `size_div`, `bounds`, `rot3d`(기본 3D 회전 각 묶음)
     메서드: `push`, `job`, `push_layers`, `push_multi`, `tick`, `spawn_now`, `scan_effect`, `clear`, `rtype`, `rtype_func`,
-          `rtype_id`, `preview`, `preview_count`
+          `rtype_id`, `rot3d_set`, `preview`, `preview_count`
     비용: 저장 = pool(필드 20) — capacity × (22×72 + 148) B + 공유 코드. capacity 128 = chk +309KB·scx +30KB,
           8 = chk +92KB·scx +9.6KB, 크기·회전을 쓰면 mathx 엔진 chk +113KB(쓴 기능만 넣는다).
           tick·소환 루틴 세 벌·변환 서브루틴 약 150 트리거(한 벌), tick 호출 자리 1. 실행은 tick·push 설명.
@@ -1065,7 +1129,8 @@ class Spawner:
 
     def __init__(self, capacity=128, loc=None, loc2=None, default_target=None, default_owner=P8, map_size=None,
                  cycle=360, turn_radius=127, storage="db", shapes=None, props="energy", unclickable=None,
-                 on_create=None, on_full=None, debug=False, name="spawn"):
+                 on_create=None, on_full=None, debug=False, name="spawn",
+                 size_div=100, bounds="skip", precise=False, rot3d_own=False):
         fname = "spawn.Spawner"
         if isinstance(name, bytes):
             name = name.decode("utf-8")
@@ -1098,6 +1163,18 @@ class Spawner:
                     "%s: map_size 는 (W, H) 픽셀 정수여야 합니다 (%r)", fname, map_size)
             map_size = tuple(ms)
         self._map_size = map_size
+        sd = unProxy(size_div)
+        if not _is_int(sd) or not 1 <= sd <= 0x7FFFFFFF:
+            fail("%s: size_div 는 1 이상 상수여야 합니다 (%r) — 100 = 퍼센트, 256 = 원본 CA_RatioXY", fname, size_div)
+        self.size_div = sd
+        check_choice(fname + " bounds", bounds, ("skip", "clamp"))
+        self.bounds = bounds
+        if not isinstance(precise, bool):
+            fail("%s: precise 는 True/False (%r)", fname, precise)
+        self.precise = precise
+        if not isinstance(rot3d_own, bool):
+            fail("%s: rot3d_own 은 True/False (%r)", fname, rot3d_own)
+        self.rot3d_own = rot3d_own
         self.cycle = mathx_tables.check_cycle(cycle, fname)
         tr = unProxy(turn_radius)
         if tr is not None:
@@ -1140,14 +1217,21 @@ class Spawner:
         self._L, self._k = EUDVariable(), EUDVariable()
         self._fsize, self._frot, self._carry = EUDLightVariable(), EUDLightVariable(), EUDLightVariable()
         self._fxf = EUDLightVariable()
+        self._f3d = EUDLightVariable()
         self._eimg, self._ecol, self._eepd, self._esub, self._eold = (EUDVariable() for _ in range(5))
         self._ehas = EUDLightVariable()
         self._cap = units.Capture()
-        self._rot = _rotator(self.cycle)
+        self._rot = _rotator(self.cycle, self.precise)
         # rtype
         self._rtypes = {}
         self._rtype_by_id = {}
+        self._none_id = 0  # "핸들러 없음" 값 — rtype(…, id=0) 을 등록하면 RTYPE_NONE 로 옮긴다
         self._default_rtype = 0
+        self._pushed = False
+        # 3D 회전 묶음 · 경계 클램프 (안 쓰면 코드가 하나도 안 나간다 — 둘 다 tick() 보다 앞에서 정해져야 한다)
+        self._rot3d_sets = {}
+        self._clamp_declared = bounds == "clamp"
+        self._z3 = None
         self.builtin = _Builtins(self)
         self.ctx = SpawnCtx(self)
         # 코드 조각
@@ -1181,6 +1265,8 @@ class Spawner:
         self._need = {"size": False, "rot": False, "effect": False}
         self._xsubs = None
         self._xdefined = False
+        self._pushed = False
+        self._z3 = None
 
     def __repr__(self):
         return "<spawn.Spawner %s capacity=%d>" % (self.name, self.capacity)
@@ -1210,8 +1296,62 @@ class Spawner:
 
     @property
     def rot3d(self):
-        """(2단계) 3D 회전 각 (xy, yz, zx) — 1단계에서는 읽으면 컴파일 오류."""
-        fail("spawn %s: rot3d(3D 회전)는 2단계 기능입니다 (S1 8.7)", self.name)
+        """기본 3D 회전 각 묶음 `Rot3D`(.xy/.yz/.zx) — `push(…, rot3d=True)` 가 쓴다(원본 `CA_Eff_XY/YZ/ZX`).
+
+        처음 읽을 때 만들어진다 — **tick()/spawn_now() 보다 먼저** 읽어야 한다(그 뒤면 컴파일 오류).
+        epScript: `sp.rot3d.xy = 30;` / `sp.rot3d.set(30, 0, 45);`
+        """
+        return self.rot3d_set("rot3d")
+
+    def rot3d_set(self, name=None):
+        """3D 회전 각 묶음을 만들거나(같은 이름이면) 돌려준다. 원본 `CA_Eff_*2` 처럼 묶음이 둘 이상일 때.
+
+        인자: name(묶음 이름 — 생략하면 "rot3d2", "rot3d3" 처럼 번호로)
+        반환: Rot3D (`.xy`·`.yz`·`.zx` EUDVariable)
+        오류: 묶음은 최대 ROT3D_MAX(3)개. tick()/spawn_now() 뒤에 새로 만들면 컴파일 오류
+        비용: 변수 3개 + 쓰는 묶음마다 tick 사이클 머리 트리거 1
+        CP: 해당 없음 / 로컬: 공유 안전
+        epScript: `const r2 = sp.rot3d_set("eff2");`
+        출처: Mem2 `func.lua:1350~1356`(`CA_Rotate3D` 두 벌), S1 8.7
+        """
+        if isinstance(name, bytes):
+            name = name.decode("utf-8")
+        if name is None:
+            name = "rot3d" if not self._rot3d_sets else "rot3d%d" % (len(self._rot3d_sets) + 1)
+        if not isinstance(name, str) or not name:
+            fail("spawn %s: rot3d_set 이름은 빈 문자열이 아닌 문자열이어야 합니다 (%r)", self.name, name)
+        r = self._rot3d_sets.get(name)
+        if r is not None:
+            return r
+        self._check_open("rot3d 묶음 만들기")
+        if len(self._rot3d_sets) >= ROT3D_MAX:
+            fail("spawn %s: 3D 회전 묶음은 최대 %d개입니다 (flags 2비트)", self.name, ROT3D_MAX)
+        r = Rot3D(self, len(self._rot3d_sets) + 1, name)
+        self._rot3d_sets[name] = r
+        return r
+
+    def _rot3d_index(self, value, fname):
+        """rot3d= 인자 → 묶음 번호(0 = 안 씀)."""
+        v = unProxy(value)
+        if isinstance(v, bytes):
+            v = v.decode("utf-8")
+        if v is None or v is False or (_is_int(v) and v == 0):
+            return 0
+        if isinstance(v, Rot3D):
+            if v._sp is not self:
+                fail("%s: 다른 Spawner 의 rot3d 묶음입니다 (%r)", fname, v)
+            r = v
+        elif v is True:
+            r = self.rot3d
+        elif isinstance(v, str):
+            r = self.rot3d_set(v)
+        elif _is_int(v) and 1 <= v <= ROT3D_MAX:
+            r = next((x for x in self._rot3d_sets.values() if x.index == v), None)
+            if r is None:
+                fail("%s: rot3d 묶음 %d 번이 없습니다 — sp.rot3d / sp.rot3d_set(…) 로 먼저 만드세요", fname, v)
+        else:
+            fail("%s: rot3d 는 True/False, Rot3D, 이름, 1~%d 중 하나입니다 (%r)", fname, ROT3D_MAX, value)
+        return r.index
 
     @property
     def live(self):
@@ -1243,12 +1383,20 @@ class Spawner:
 
     @property
     def default_rtype(self):
-        """rtype 생략 시 쓰는 번호(0 = 없음). 이름·번호로 넣는다(등록된 것만). epScript: `sp.default_rtype = "Home";`"""
+        """rtype 생략 시 쓰는 번호(`sp.rtype_none` = 없음 — 보통 0). 이름·번호로 넣는다(등록된 것만).
+
+        epScript: `sp.default_rtype = "Home";`
+        """
         return self._default_rtype
+
+    @property
+    def rtype_none(self):
+        """"핸들러 없음" 을 뜻하는 값. 보통 **0** 이고, `rtype(…, id=0)` 을 등록한 Spawner 만 `RTYPE_NONE`(256)."""
+        return self._none_id
 
     @default_rtype.setter
     def default_rtype(self, value):
-        v = self.rtype_id(value) if value is not None else 0
+        v = self.rtype_id(value) if value is not None else self._none_id
         if not _is_int(v):
             fail("spawn %s: default_rtype 은 상수(이름·번호)여야 합니다", self.name)
         self._default_rtype = v
@@ -1263,7 +1411,9 @@ class Spawner:
         """RepeatType(소환 뒤 행동)을 등록한다. 컴파일 시점, 첫 tick()/spawn_now() 보다 앞.
 
         인자: name(문자열 — push 의 rtype= 로 부른다), handler(fn(s) 또는 인자 없는 함수, EUDFunc, 그 목록, 또는 None = 아무것도
-              안 함), id(1~255, 생략 = 비어 있는 가장 작은 번호). 0 은 "없음" 으로 예약.
+              안 함), id(0~255, 생략 = 비어 있는 가장 작은 번호 **1 부터**).
+              **`id=0` 은 원본 번호가 0 인 갈래(Mem2 의 "어택 일반")를 위한 것**이다. 등록하는 순간 이 Spawner 의
+              "핸들러 없음" 값이 `RTYPE_NONE`(256)으로 옮겨 가므로 **첫 push 보다 앞에서** 등록해야 한다.
         반환: RType (데코레이터로 쓰면 핸들러를 더한다: `@sp.rtype("Skill", id=8) def f(s): …`)
         비용: 없음(등록). 소환 서브루틴의 EUDSwitch 에 가지가 하나 생긴다(실행 약 log2(수) + 4)
         CP: 해당 없음
@@ -1284,11 +1434,19 @@ class Spawner:
                 fail("spawn %s: rtype 번호 1~255 가 모두 찼습니다", self.name)
         else:
             rid = unProxy(id)
-            if not _is_int(rid) or not 1 <= rid <= 255:
-                fail("spawn.rtype %s: id 는 1~255 상수여야 합니다 (%r) — 0 은 '없음'", name, id)
+            if not _is_int(rid) or not 0 <= rid <= 255:
+                fail("spawn.rtype %s: id 는 0~255 상수여야 합니다 (%r)", name, id)
             if rid in self._rtype_by_id:
                 fail("spawn %s: rtype 번호 %d 를 두 번 등록했습니다 (%s, %s) (RepeatTypeNum_Duplicated)", self.name, rid,
                      self._rtype_by_id[rid].name, name)
+            if rid == 0:
+                # 0 이 진짜 갈래가 되므로 "없음" 표지를 0~255 밖으로 옮긴다 (이미 0 을 "없음" 으로 쓴 뒤면 늦었다)
+                if self._pushed:
+                    fail("spawn %s: rtype id=0 은 **첫 push 보다 앞에서** 등록해야 합니다 (이미 넣은 작업이 0 을 "
+                         "'핸들러 없음' 으로 쓰고 있습니다)", self.name)
+                self._none_id = RTYPE_NONE
+                if self._default_rtype == 0:
+                    self._default_rtype = RTYPE_NONE
         rt = RType(self, name, rid)
         handlers = [] if handler is None else (list(handler) if isinstance(handler, (list, tuple)) else [handler])
         for h in handlers:
@@ -1319,7 +1477,7 @@ class Spawner:
         return self.rtype(name, list(fns), id=id)
 
     def rtype_id(self, value):
-        """rtype 인자 → 번호. 이름·번호 상수는 등록된 것만(0 = 없음), 변수는 그대로.
+        """rtype 인자 → 번호. 이름·번호 상수는 등록된 것만(0 은 등록 안 했으면 "없음"), 변수는 그대로.
 
         반환: int 또는 EUDVariable / 비용: 없음(상수) / epScript: `const n = sp.rtype_id("Home");`
         """
@@ -1337,19 +1495,22 @@ class Spawner:
                 fail("spawn %s: 다른 Spawner 의 rtype 입니다 (%r)", self.name, v)
             return v.id
         if _is_int(v):
-            if v == 0:
-                return 0
+            if v == 0 and 0 not in self._rtype_by_id:
+                return self._none_id  # 0 을 등록하지 않았으면 옛 뜻 그대로 "없음"
+            if v == RTYPE_NONE:
+                return RTYPE_NONE
             if v not in self._rtype_by_id:
                 fail("spawn %s: 등록되지 않은 rtype 번호 %d", self.name, v)
             return v
         return _num(v, "spawn.rtype", "rtype", 0, 255)
 
     # ------------------------------------------------------------------ 컴파일 시점 도우미
-    def preview(self, shape, center=(0, 0), size=100, rotate=0, offset=(0, 0), rotation=0):
+    def preview(self, shape, center=(0, 0), size=None, rotate=0, offset=(0, 0), rotation=0, bounds=None):
         """넣었을 때 소환될 좌표 목록을 컴파일 시점에 계산한다(상수 인자만 — 확인·문구용).
 
-        인자: shape(Shape 또는 sid 상수), center((x, y) 상수), size, rotate(각 또는 GLOBAL — GLOBAL 이면 rotation 값),
-              offset((dx, dy)), rotation(GLOBAL 일 때의 전역 각)
+        인자: shape(Shape 또는 sid 상수), center((x, y) 상수), size(None = size_div = 크기 그대로),
+              rotate(각 또는 GLOBAL — GLOBAL 이면 rotation 값), offset((dx, dy)), rotation(GLOBAL 일 때의 전역 각),
+              bounds(None = Spawner 기본 — "skip" 은 밖을 버리고 "clamp" 는 잘라 넣는다. 3D 회전은 런타임 값이라 못 본다)
         반환: [(X, Y)] 경계 안의 점(소환 순서). 스케줄·lm 과 무관
         비용: 없음(파이썬)
         CP: 해당 없음 / 로컬: 해당 없음
@@ -1361,33 +1522,43 @@ class Spawner:
         W, H = self.map_size
         cx, cy = (unProxy(v) for v in center)
         dx, dy = (unProxy(v) for v in offset)
-        size = unProxy(size)
+        size = self.size_div if unProxy(size) is None else unProxy(size)
         glob = unProxy(rotate) is GLOBAL
         ang = unProxy(rotation) if glob else unProxy(rotate)
         for v in (cx, cy, dx, dy, size, ang):
             if not _is_int(v):
                 fail("spawn.preview: 상수만 받습니다 (%r)", v)
+        bd = unProxy(bounds)
+        if isinstance(bd, bytes):
+            bd = bd.decode("utf-8")
+        if bd is None:
+            bd = self.bounds
+        check_choice("spawn.preview bounds", bd, ("skip", "clamp"))
         out = []
         for x, y in shape.points:
-            if size != 100:
-                x = _tdiv(_s32(x * size), 100)
-                y = _tdiv(_s32(y * size), 100)
+            if size != self.size_div:
+                x = _tdiv(_s32(x * size), self.size_div)
+                y = _tdiv(_s32(y * size), self.size_div)
             if glob or (ang & M32) != 0:
-                x, y = rotate_py(x, y, ang, self.cycle)
+                x, y = rotate_py(x, y, ang, self.cycle, self.precise)
             X = (x + dx + cx) & M32
             Y = (y + dy + cy) & M32
+            if bd == "clamp":
+                X = 0 if X >= 0x80000000 else min(X, W - 1)
+                Y = 0 if Y >= 0x80000000 else min(Y, H - 1)
             if X <= W - 1 and Y <= H - 1:
                 out.append((X, Y))
         return out
 
-    def preview_count(self, shape, center=(0, 0), size=100, rotate=0, offset=(0, 0), rotation=0):
+    def preview_count(self, shape, center=(0, 0), size=None, rotate=0, offset=(0, 0), rotation=0, bounds=None):
         """`len(preview(…))` — epScript 용 컴파일 시점 정수(인게임 문구·자체 점검에 쓴다).
 
         인자·비용: `preview` 와 같음 / 반환: int / CP: 해당 없음 / 로컬: 해당 없음
         epScript: `const n = sp.preview_count(ring, center=list(4050, 1200));`
         출처: 새로 작성
         """
-        return len(self.preview(shape, center=center, size=size, rotate=rotate, offset=offset, rotation=rotation))
+        return len(self.preview(shape, center=center, size=size, rotate=rotate, offset=offset, rotation=rotation,
+                                bounds=bounds))
 
     # ------------------------------------------------------------------ 넘침 문구
     def _pool_full(self):
@@ -1421,17 +1592,19 @@ class Spawner:
         """
         return Job(self, **kw)
 
-    def push(self, unit, shape, owner=None, center=None, lm="max", delay=0, size=100, rotate=0, rot3d=False,
-             offset=(0, 0), rtype=None, order=None, effect=None, variant=None, mirror=False):
+    def push(self, unit, shape, owner=None, center=None, lm="max", delay=0, size=None, rotate=0, rot3d=False,
+             offset=(0, 0), rtype=None, order=None, effect=None, bounds=None, variant=None, mirror=False):
         """층 하나짜리 작업을 넣는다(원본 G_CB_TSetSpawn 한 유닛·한 도형). 조건은 호출 자리의 EUDIf, 게임당 한 번은 EUDExecuteOnce.
 
         인자: unit(유닛 이름·번호 0~226·변수), shape(Shape — 이 Spawner 의 ShapeSet 에 넣는다 | sid 상수·변수),
               owner(None = default_owner | P1~P12 | 번호 변수),
               center(None = 그때의 sp.anchor | (x, y) | 로케이션 이름·1부터 번호(그때의 중심) | 로케이션 번호 변수 | at_unit(epd)),
               lm("max" = 255 | 1~255 | 0 = 자동 n//50+1 | 변수 — 0 이면 자동), delay(0·1 = 매 프레임, k = k 프레임마다),
-              size(퍼센트, 100 = 그대로), rotate(각 | 변수 | sp.GLOBAL), offset((dx, dy) — 회전 뒤 평행이동),
+              size(None = size_div = 그대로. 분모는 `Spawner(size_div=)` — 기본 100 이라 퍼센트),
+              rotate(각 | 변수 | sp.GLOBAL), offset((dx, dy) — 회전 뒤 평행이동),
+              rot3d(False | True = sp.rot3d 묶음 | Rot3D | 묶음 이름 — 2D 회전 뒤에 XY·YZ·ZX 순서로 돌린다),
               rtype(None = default_rtype | 등록된 이름·번호 | 변수), order(Order | None), effect(Effect.scan | None),
-              rot3d·variant·mirror(2단계 — 쓰면 컴파일 오류)
+              bounds(None = Spawner 기본 | "skip" | "clamp"), variant·mirror(2단계 — 쓰면 컴파일 오류)
         반환: 첫 층 핸들 EUDVariable (0 = 넘침 — overflow += 1, 층을 하나도 넣지 않는다)
         비용: 호출 자리 약 7 (pool alloc_n, 층마다 +4) / 실행 약 20~25 (3층 56). 로케이션 중심 +약 195, at_unit +약 30,
               변수 sid +약 135 (2026-09-17, docs/COSTS.md)
@@ -1442,7 +1615,7 @@ class Spawner:
         """
         return self._emit_push(dict(owner=owner, center=center, offset=offset, order=order, effect=effect, rot3d=rot3d),
                                [(unit, shape, dict(lm=lm, delay=delay, size=size, rotate=rotate, rtype=rtype,
-                                                   variant=variant, mirror=mirror))])
+                                                   bounds=bounds, variant=variant, mirror=mirror))])
 
     def push_layers(self, pairs, **kw):
         """파이썬 편의: `[(unit, shape), …]` 를 한 작업의 층으로 넣는다.
@@ -1519,8 +1692,7 @@ class Spawner:
             fail("%s: 층이 없습니다 (job().layer(…) 를 먼저)", fname)
         if len(layers) > self.capacity:
             fail("%s: 층 %d개가 capacity %d 보다 많습니다", fname, len(layers), self.capacity)
-        if jkw.get("rot3d"):
-            fail("%s: rot3d(3D 회전)는 2단계 기능입니다 (S1 8.7)", fname)
+        r3 = self._rot3d_index(jkw.get("rot3d"), fname)
         effect = unProxy(jkw.get("effect"))
         if effect is not None and not isinstance(effect, Effect):
             fail("%s: effect 는 Effect.scan(…) 이어야 합니다 (%r)", fname, effect)
@@ -1562,8 +1734,9 @@ class Spawner:
             ox, oy = self._resolve_xy(order_.target, fname, "명령 목표")
         eff = 0 if effect is None else _eff_value(effect)
         inits = []
+        self._pushed = True
         for li, p in enumerate(plans):
-            flags = p["flags"] | (okind << 2)
+            flags = p["flags"] | (okind << 2) | (r3 << F_ROT3D_SHIFT)
             if li + 1 < len(plans):
                 flags |= F_NEXT
             if effect is not None:
@@ -1631,8 +1804,8 @@ class Spawner:
             p["lm"] = v
             p["lm_mode"] = "var"
         p["delay"] = _num(kw.get("delay", 0), what, "delay", 0, M32)
-        p["size"] = _num(kw.get("size", 100), what, "size", 0, 0x7FFFFFFF)
-        if not (_is_int(p["size"]) and p["size"] == 100):
+        p["size"] = _num(kw.get("size", self.size_div), what, "size", 0, 0x7FFFFFFF)
+        if not (_is_int(p["size"]) and p["size"] == self.size_div):
             self._mark("size", "size")
         rot = unProxy(kw.get("rotate", 0))
         p["flags"] = 0
@@ -1644,13 +1817,26 @@ class Spawner:
             p["rot"] = _u32(_num(rot, what, "rotate"))
             if not (_is_int(p["rot"]) and p["rot"] == 0):
                 self._mark("rot", "rotate")
+        # 경계: "skip"(기본, 늘 경계 검사) 또는 "clamp"(0~W−1·0~H−1 로 자르고 반드시 소환 — 원본 CA_Func 기본)
+        bd = unProxy(kw.get("bounds"))
+        if isinstance(bd, bytes):
+            bd = bd.decode("utf-8")
+        if bd is None:
+            bd = self.bounds
+        check_choice(what + " bounds", bd, ("skip", "clamp"))
+        if bd == "clamp":
+            if not self._clamp_declared and self._point_sub is not None:
+                fail("%s: bounds=\"clamp\" 를 tick()/spawn_now() 뒤에 처음 썼습니다 — 그 push 를 tick() 보다 앞에 두거나 "
+                     "Spawner(bounds=\"clamp\") 로 선언하세요", what)
+            self._clamp_declared = True
+            p["flags"] |= F_CLAMP
         rt = kw.get("rtype")
         if is_effect:
-            p["rtype"] = 0
+            p["rtype"] = self._none_id
         else:
             rid = self._default_rtype if rt is None else self.rtype_id(rt)
             p["rtype"] = rid
-            if not _is_int(rid) or (rid and self._rtype_by_id[rid].handlers) or (rid and self.debug):
+            if not _is_int(rid) or (rid != self._none_id and (self.debug or self._rtype_by_id[rid].handlers)):
                 p["flags"] |= F_POST
         if p["lm_mode"] == "var":
             # 변수 lm 이 0 이면 자동 (상수 도형은 여기서, 변수 도형은 _runtime_layer 에서)
@@ -1789,7 +1975,8 @@ class Spawner:
         """크기·회전·이펙트 서브루틴: 자리(SubLabel)는 지금, 본문은 주 함수를 다 만든 뒤 쓰인 기능만 채운다."""
         if self._xsubs is not None:
             return self._xsubs
-        self._xsubs = tuple(_parts.SubLabel("%s.%s" % (self.name, n)) for n in ("size", "rot", "eff_begin", "eff_end"))
+        self._xsubs = tuple(_parts.SubLabel("%s.%s" % (self.name, n))
+                            for n in ("size", "rot", "eff_begin", "eff_end", "rot3d", "clamp"))
         if _compat.onstart_phase() < 2:
             _compat.on_start_after_main(self._define_xsubs)
         else:
@@ -1802,18 +1989,34 @@ class Spawner:
         if self._xdefined:
             return
         self._xdefined = True
-        size_sub, rot_sub, eb_sub, ee_sub = self._xsubs
+        size_sub, rot_sub, eb_sub, ee_sub, r3_sub, cl_sub = self._xsubs
         px, py, J = self._px, self._py, self._J
         with size_sub.define():
             if self._need["size"]:
-                mathx.ratio(px, self._S, 100, div0="ctrig", ret=[px])
-                mathx.ratio(py, self._S, 100, div0="ctrig", ret=[py])
+                mathx.ratio(px, self._S, self.size_div, div0="ctrig", ret=[px])
+                mathx.ratio(py, self._S, self.size_div, div0="ctrig", ret=[py])
         with rot_sub.define():
             if self._need["rot"]:
                 if EUDIf()(_bit(J["flags"], F_GLOBAL)):
                     self._rot.set(self._rotation)
                 EUDEndIf()
                 self._rot(px, py, ret=[px, py])
+        with r3_sub.define():
+            if self._rot3d_sets:
+                if self._z3 is None:
+                    self._z3 = EUDVariable()
+                for r in sorted(self._rot3d_sets.values(), key=lambda x: x.index):
+                    if EUDIf()(self._f3d.Exactly(r.index)):
+                        mathx.f_rotate3d(px, py, r.xy, r.yz, r.zx, cycle=self.cycle, precise=self.precise,
+                                         own=self.rot3d_own, ret=[px, py, self._z3])
+                    EUDEndIf()
+        with cl_sub.define():
+            if self._clamp_declared:
+                W, H = self.map_size
+                for v, hi in ((px, W - 1), (py, H - 1)):
+                    # 원본 CA_Func: 음수(≥ 0x80000000) → 0, 맵 밖(≥ W, ≤ 0x7FFFFFFF) → W−1
+                    RawTrigger(conditions=v.AtLeast(0x80000000), actions=v.SetNumber(0))
+                    RawTrigger(conditions=[v.AtLeast(hi + 1), v.AtMost(0x7FFFFFFF)], actions=v.SetNumber(hi))
         with eb_sub.define():
             if self._need["effect"]:
                 self._emit_effect_begin()
@@ -1930,8 +2133,9 @@ class Spawner:
                         self._in_point = False
                     EUDBreak()
             if self.debug:
-                if EUDSwitchCase()(0):
-                    EUDBreak()
+                for none_v in sorted({0, self._none_id} - set(cases)):
+                    if EUDSwitchCase()(none_v):  # "핸들러 없음" 은 조용히 지나간다
+                        EUDBreak()
                 if EUDSwitchDefault()():
                     self._say("\x07『 \x08ERROR : \x04%s: 등록되지 않은 rtype 값이 들어와 아무것도 하지 않았습니다.\x07 』"
                               % self.name, 1)
@@ -2005,6 +2209,8 @@ class Spawner:
         L, k = self._L, self._k
         carry = self._carry
         size_sub, rot_sub = self._xsubs[:2]
+        r3_sub, cl_sub = self._xsubs[4], self._xsubs[5]
+        r3ids = sorted(r.index for r in self._rot3d_sets.values())
         RawTrigger(actions=carry.SetNumber(0))
         for g in self.pool.each():
             w = g.w
@@ -2031,10 +2237,18 @@ class Spawner:
                     ])
                     fx = self._fxf
                     RawTrigger(actions=[self._fsize.SetNumber(1), self._frot.SetNumber(1), fx.SetNumber(1)])
-                    RawTrigger(conditions=g.size.Exactly(100), actions=self._fsize.SetNumber(0))
+                    RawTrigger(conditions=g.size.Exactly(self.size_div), actions=self._fsize.SetNumber(0))
                     RawTrigger(conditions=[g.rot.Exactly(0), _no_bit(g.flags, F_GLOBAL)],
                                actions=self._frot.SetNumber(0))
-                    RawTrigger(conditions=[self._fsize.Exactly(0), self._frot.Exactly(0)], actions=fx.SetNumber(0))
+                    xf0 = [self._fsize.Exactly(0), self._frot.Exactly(0)]
+                    if r3ids:
+                        # 3D 회전 묶음 번호를 사이클 머리에서 한 번만 푼다 (점마다 flags 를 다시 보지 않게)
+                        RawTrigger(actions=self._f3d.SetNumber(0))
+                        for i in r3ids:
+                            RawTrigger(conditions=_field_eq(g.flags, F_ROT3D, i << F_ROT3D_SHIFT),
+                                       actions=self._f3d.SetNumber(i))
+                        xf0.append(self._f3d.Exactly(0))
+                    RawTrigger(conditions=xf0, actions=fx.SetNumber(0))
                     if EUDIf()([self._frot.Exactly(1), _no_bit(g.flags, F_GLOBAL)]):
                         rot.set(g.rot)
                     EUDEndIf()
@@ -2045,8 +2259,12 @@ class Spawner:
                         if EUDIf()(fx.Exactly(1)):
                             _parts.call_sub(size_sub, conds=self._fsize.Exactly(1))
                             _parts.call_sub(rot_sub, conds=self._frot.Exactly(1))
+                            if r3ids:
+                                _parts.call_sub(r3_sub, conds=self._f3d.AtLeast(1))
                         EUDEndIf()
                         SeqCompute([(px, Add, self._tx), (py, Add, self._ty)])
+                        if self._clamp_declared:
+                            _parts.call_sub(cl_sub, conds=_bit(g.flags, F_CLAMP))
                         if EUDIf()([px.AtMost(W - 1), py.AtMost(H - 1)]):
                             t_, a_ = self._point_call()
                             call_trig << t_
@@ -2095,10 +2313,10 @@ class Spawner:
         o = self._default_owner if owner is None else _owner_arg(owner, fname)
         cnt = _num(count, fname, "count", 0, M32)
         flags = 0
-        rid = 0
+        rid = self._none_id
         if effect is None:
             rid = self._default_rtype if rtype is None else self.rtype_id(rtype)
-            if (not _is_int(rid) or (rid and (self._rtype_by_id[rid].handlers or self.debug))
+            if (not _is_int(rid) or (rid != self._none_id and (self._rtype_by_id[rid].handlers or self.debug))
                     or order_ is not None or self.on_create is not None):
                 flags |= F_POST
         else:

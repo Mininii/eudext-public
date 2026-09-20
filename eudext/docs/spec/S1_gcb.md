@@ -49,7 +49,7 @@
 | | MEME | MEME | STL 보다 이른 사본. 속성에 `FfragMode`·`FfragAfterTimer` 가 없고 3D 옵션 키가 `NQOpTable` 이다. Order 로케이션 인코딩이 `Temp+2`(MEME 1723) |
 | **구판 G_CB** | RSV | ResV | `G_CB_TSetSpawn(Cond, CUT, Shape, Preserve, Prop)` 5인자(RSV 1438). 주인·중심이 속성(`OwnerTable`, `CenterXY`). 모르는 키는 **무시**. `RotateTable` 층별 표·`"Main2"` 지원(RSV 1562~1588). 맵 경계 `32*64`×`32*256`(RSV 931) |
 | **UE 계열** | UER | UERE | 전혀 다른 구현. `Include_G_CB_Library(StartIndex, ArrSize, Lines, DefCenterXYV, TRepeatXYV, ShapeTable, LoopMaxTable)`(UER 632), 도형을 **이름 문자열 목록**으로 미리 등록(UER 950~966), 소환은 `CreateUnitQueue*` 배열에 적재(UER 720~731), `f_TempRepeat(UnitID, Number, Cond, Type, Owner, CenterXY)` 인자 순서가 다름(UER 742) |
-| **옛판 G_CA** | Mem2 `func.lua:536`, G2R `func.lua:79`, Brz `func.lua:352` | Mem2, G2R, Brz | `G_CA_SetSpawn(Cond, CUT, SNTable, SLTable, LM, RepeatType, [Size/CenterType], Center, Owner, …)`(Brz 1231). 도형 **계열 배열 + 단계 번호**(`{S_4,P_6}`, `{1,4}` → `SL*12` 또는 `256+j`)로 고르고 `CAPlot2`(맵 안 재정의)로 찍는다. 신판 `G_CB_SetSpawn` 이 이 서명을 흉내 낸 호환 래퍼다(4.2). DESIGN 4.14 대로 **eudext 대상에서 뺀다** |
+| **옛판 G_CA** | Mem2 `func.lua:536`, G2R `func.lua:79`, Brz `func.lua:352` | Mem2, G2R, Brz | `G_CA_SetSpawn(Cond, CUT, SNTable, SLTable, LM, RepeatType, [Size/CenterType], Center, Owner, …)`(Brz 1231). 도형 고르는 법이 맵마다 다르다 — **G2R·Brz** 는 계열 배열 + 단계 번호(`{S_4,P_6}`, `{1,4}` → `SL*12` 또는 `256+j`), **Mem2 는 `SNTable` 에 `"ACAS"`(= `Another_CAPlot_Shape`) 를 주고 `SLTable` 에 도형 이름(문자열)을 주어 이름 → 인덱스로 찾는다**(실측: `SNTable` 103/103 이 `"ACAS"`, 도형 이름 136개 — Mem2 `eud/DESIGN.md` 10.13). 찍기는 `CAPlot2`(맵 안 재정의)다. 신판 `G_CB_SetSpawn` 이 이 서명을 흉내 낸 호환 래퍼다(4.2). DESIGN 4.14 대로 **eudext 대상에서 뺀다**(2026-09-20: 이 계열이 걸리던 eudext 쪽 공백 — `rot3d`·`size_div`·`bounds` — 은 메웠다) |
 
 `f_TempRepeat2X` 는 G_CB_Lib 에 없고 Mem2 `func.lua:1086` 에만 있다(유닛 최대 20종 + 이펙트 번호 = 신판 `G_CB_SetSpawn2X`/`FfragMode` 의 전신).
 
@@ -699,7 +699,8 @@ sp.push(37, ring, owner=P8,
         lm="max",               # "max"(=255) | 1..255 | 0(자동 n//50+1) | 변수
         delay=0, size=100,      # 상수 또는 변수
         rotate=0,               # 정수 | 변수 | sp.GLOBAL
-        rot3d=False,            # True = sp.rot3d 각 사용
+        rot3d=False,            # True = sp.rot3d 묶음 | Rot3D | 묶음 이름
+        bounds=None,            # None = Spawner 기본 | "skip" | "clamp"
         offset=(0, 0),          # DistanceXY
         rtype="Home",           # 이름 | 번호 | 변수(등록된 번호)
         order=None,             # Order.attack(x, y) | Order.patrol("Loc") | Order.move(...)
@@ -715,7 +716,8 @@ sp.scan_effect(ring, image=429, color=16, owner=P8, center="Boss", lm="max")  # 
 
 sp.anchor.x, sp.anchor.y          # G_CB_X / G_CB_Y (EUDVariable)
 sp.rotation                       # G_CB_RotateV
-sp.rot3d                          # (xy, yz, zx) EUDVariable 3개
+sp.rot3d                          # 기본 Rot3D 묶음 (.xy/.yz/.zx EUDVariable) — tick() 보다 앞에서 만든다
+sp.rot3d_set("eff2")              # 묶음 더 만들기 (최대 3)
 sp.live                           # 살아 있는 레코드 수
 sp.overflow                       # 넘침 누적
 sp.clear()                        # 모든 작업 취소
@@ -767,7 +769,9 @@ function afterTriggerExec() {
 | `Order={A, X, Y}` / `{A, Loc}` | `order=Order.attack(X, Y)` / `Order.attack("Loc")` |
 | `DistanceXY` | `offset=` |
 | `FNTable=1/2` | (2단계) `layer(..., variant="sweep"/"radial")` |
-| `Rotate3D_Option=1`, `CA_Eff_*` | `rot3d=True`, `sp.rot3d` |
+| `Rotate3D_Option=1`, `CA_Eff_*` | `rot3d=True`, `sp.rot3d` (`CA_Eff_*2` 는 `sp.rot3d_set("…")` + `rot3d=그 묶음`) |
+| 옛판 `CA_RatioXY(v, 256, v, 256)` | `Spawner(size_div=256)` + `size=v` |
+| 옛판 `CA_Func` 의 4095 클램프 / `G_CA_MapLimit()` | `bounds="clamp"`(맵 크기는 chk DIM 에서) / `bounds="skip"` |
 | `G_CB_TScanEff` / `EffID`·색 | `sp.scan_effect(...)` / `effect=Effect.scan(img, color)` |
 | `G_CB_SetSpawn2X` / `FfragMode` | (2단계) `effect=Effect.frag(units=[(u, n), …], life=…)` + `sp.on_frag_death` 도우미 |
 | `f_TempRepeat(C, U, N, T, O, Ctr, F, _, RO)` | `sp.spawn_now(U, N, owner=O, at=Ctr, rtype=T, order=RO)` |
@@ -851,7 +855,8 @@ sp.frame += 1
 |---|---|---|
 | 1 | Spawner, push/job/layer, tick, lm·delay·size·rotate(GLOBAL 포함)·offset·order·center 5종, rtype 등록 + 내장 핸들러, spawn_now, 스케줄(작업별 포인터), debug, clear | 사용량 대부분, theSeed 전부 |
 | 1(선택) | `Effect.scan` / `scan_effect` | MEME 183 |
-| 2 | `rot3d`, `unclickable`, 프리펑션 변형(`variant`), `Effect.frag` + 죽음 처리 도우미, 점대칭 스폰(`mirror=True`) | Stel 5·52, MEME 13, ResV 약 130 |
+| 2 | `unclickable`, 프리펑션 변형(`variant`), `Effect.frag` + 죽음 처리 도우미, 점대칭 스폰(`mirror=True`) | Stel 5·52, MEME 13, ResV 약 130 |
+| 1(2026-09-20 보탬) | **`rot3d`**(`push(rot3d=True)` + `sp.rot3d`/`sp.rot3d_set()` — 2D 회전 뒤·평행이동 앞에 `mathx.rotate3d`), **`size_div`**(크기의 분모 — 기본 100 = 퍼센트, 256 = 옛판 `CA_RatioXY(v,256,…)`), **`bounds`**(`"skip"` 기본 = 밖은 버린다 / `"clamp"` = 0~W−1·0~H−1 로 잘라 반드시 소환 — 옛판 `CA_Func` 기본), **`precise`**(회전에 고정밀 lengthdir 표 — 원본이 `Include_CtrigPlib(…, LengthdirX=1)` 인 맵. 기본 False), **`rtype(…, id=0)`**(0 을 정상 번호로 — "없음" 표지는 `RTYPE_NONE`=256 으로 옮겨 간다) | Mem2 P6-c: 3D 59곳·비율 26곳·MapLimit 2곳·rtype 0 34곳 |
 | 하지 않음 | 유닛 자리표 221~224(변수로 대체), `f_TempEffRepeatX`(0회), `CB_MarNumFill` 이름, theSeed 전용 RepeatType | |
 
 ---
