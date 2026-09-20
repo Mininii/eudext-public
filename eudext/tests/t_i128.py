@@ -759,9 +759,80 @@ def build_k(s, idx, K):
     return ref
 
 
+# 2의 거듭제곱 제수: (칸 옮김 sw, 비트 sb) 모양을 골고루 — sb = 0 (칸만), sb ≠ 0 (겹친 창 세 번)
+POW2_S = (1, 2, 4, 31, 32, 33, 47, 64, 69, 96, 100, 127)
+
+
+# CONST_DIVISOR 를 끈 판 — 상수 제수가 상수 전용 본문 대신 변수 제수 공유 본문으로 간다 (용량 스위치)
+KS_NOCONST = (3, 7, 100, 5000, 0x80000001, M32)
+
+
+def build_noconst(s):
+    @s.case("noconst")
+    def _(t):
+        a = q(t, "a")
+        keep = (i64.CONST_DIVISOR, i128.CONST_DIVISOR)
+        i64.CONST_DIVISOR = i128.CONST_DIVISOR = False
+        try:
+            for j, K in enumerate(KS_NOCONST):
+                q(t, "d%d" % j) << a // K
+                q(t, "m%d" % j) << a % K
+                x = q(t, "i%d" % j)
+                x << a
+                x //= K
+                q64(t, "e%d" % j) << a.lo // K  # i64 쪽 같은 갈림
+                q64(t, "f%d" % j) << a.lo % K
+        finally:
+            i64.CONST_DIVISOR, i128.CONST_DIVISOR = keep
+
+    def ref(a):
+        e = {}
+        for j, K in enumerate(KS_NOCONST):
+            e["d%d" % j] = e["i%d" % j] = a // K
+            e["m%d" % j] = a % K
+            e["e%d" % j] = (a & M64) // K
+            e["f%d" % j] = (a & M64) % K
+        return e
+
+    return ref
+
+
+def build_pow2(s):
+    """제자리(`x //= k` — 목적지 = 피제수)·따로·divmod 세 모양을 한 케이스에서."""
+
+    @s.case("pow2")
+    def _(t):
+        a = q(t, "a")
+        for sh in POW2_S:
+            k = 1 << sh
+            q(t, "d%d" % sh) << a // k
+            q(t, "m%d" % sh) << a % k
+            x = q(t, "i%d" % sh)
+            x << a
+            x //= k
+            y = q(t, "j%d" % sh)
+            y << a
+            y %= k
+            qq, rr = i128.divmod(a, k)
+            q(t, "p%d" % sh) << qq
+            q(t, "s%d" % sh) << rr
+
+    def ref(a):
+        e = {}
+        for sh in POW2_S:
+            k = 1 << sh
+            e["d%d" % sh] = e["i%d" % sh] = e["p%d" % sh] = a // k
+            e["m%d" % sh] = e["j%d" % sh] = e["s%d" % sh] = a % k
+        return e
+
+    return ref
+
+
 def suite_const():
     s = Suite("t_i128 상수")
     refs = [build_k(s, idx, K) for idx, K in enumerate(KS)]
+    pref = build_pow2(s)
+    nref = build_noconst(s)
     s.build()
     rng = random.Random(77)
     for idx, K in enumerate(KS):
@@ -770,6 +841,13 @@ def suite_const():
             vals.append(rng.getrandbits(rng.choice((16, 32, 64, 96, 128))))
         for a in vals:
             judge(s, "k%d" % idx, put({}, "a", a), refs[idx](a), "K=0x%X a=0x%X" % (K, a))
+    pvals = list(EDGES) + [(1 << b) + d for b in (31, 32, 63, 64, 95, 96, 127) for d in (-1, 0, 1)]
+    for _ in range(NKVAL * 3):
+        pvals.append(rng.getrandbits(rng.choice((16, 32, 64, 96, 128))))
+    for a in pvals:
+        judge(s, "pow2", put({}, "a", a & M128), pref(a & M128), "pow2 a=0x%X" % (a & M128))
+    for a in pvals[:40]:
+        judge(s, "noconst", put({}, "a", a & M128), nref(a & M128), "noconst a=0x%X" % (a & M128))
     return s.report()
 
 
@@ -1679,6 +1757,20 @@ def _op(fn):
     return build
 
 
+def _noconst(fn):
+    """CONST_DIVISOR 를 끈 채로 낸다 (상수 제수 → 변수 제수 공유 본문)."""
+
+    def build(t):
+        keep = (i64.CONST_DIVISOR, i128.CONST_DIVISOR)
+        i64.CONST_DIVISOR = i128.CONST_DIVISOR = False
+        try:
+            fn(t, _q(t, "a"), _q(t, "b"))
+        finally:
+            i64.CONST_DIVISOR, i128.CONST_DIVISOR = keep
+
+    return build
+
+
 def _cc(fn):
     def build(t):
         Trigger(conditions=fn(t, _q(t, "a"), _q(t, "b")))
@@ -1742,6 +1834,17 @@ COST_CASES = [
     CostCase("x // 100 (상수 제수)", _op(lambda t, a, b: a // 100), A1, funcs=[i128._cdiv_fn(100)]),
     CostCase("divmod(x, 5000) (상수 제수)", _op(lambda t, a, b: i128.divmod(a, 5000)), A1, funcs=[i128._cdiv_fn(5000)]),
     CostCase("x // 10^19 (64비트 상수 제수 — 변수 본문)", _op(lambda t, a, b: a // 10**19), A1),
+    CostCase("x // 16 (2의 거듭제곱)", _op(lambda t, a, b: a // 16), A1, funcs=[i64._shk_fn("shr", 4)],
+             note="i64 상수 시프트 본문 공유 — 128비트 쪽 본문 없음"),  # fmt: skip
+    CostCase("x % 16 (2의 거듭제곱)", _op(lambda t, a, b: a % 16), A1, note="비트 자르기 한 트리거"),
+    CostCase("divmod(x, 16) (2의 거듭제곱)", _op(lambda t, a, b: i128.divmod(a, 16)), A1,
+             funcs=[i64._shk_fn("shr", 4)]),  # fmt: skip
+    CostCase("x // 2^64 (칸 옮김만)", _op(lambda t, a, b: a // 2**64), A1, note="트리거 없이 칸 대입"),
+    CostCase("참고: x // 17 (2의 거듭제곱 아님)", _op(lambda t, a, b: a // 17), A1, funcs=[i128._cdiv_fn(17)]),
+    CostCase("x // 100 (CONST_DIVISOR 끔)", _noconst(lambda t, a, b: a // 100), A1,
+             note="상수 전용 본문을 굽지 않고 변수 제수 공유 본문으로"),  # fmt: skip
+    CostCase("Int64 // 100 (i64.CONST_DIVISOR 끔)", _noconst(lambda t, a, b: a.lo // 100), A1),
+    CostCase("참고: Int64 // 100 (켬)", _op(lambda t, a, b: a.lo // 100), A1, funcs=[i64._cdiv_fn(100, "q")]),
     CostCase("fmt(x) (10진 39자리)", _op(lambda t, a, b: a.fmt()), FMTV, funcs=[i128._dec128_hi, i64._lidec_body],
              note="값 < 2^64 는 윗 자리 본문을 건너뜀"),  # fmt: skip
     CostCase("fmt(Int64) (64비트 이하)", _op(lambda t, a, b: i128.fmt(a.lo)), FMTV[:2], funcs=[i64._lidec_body]),

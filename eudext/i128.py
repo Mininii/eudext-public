@@ -73,7 +73,9 @@ epScript (`import eudext.i128 as i128;` — 값 타입은 const 로 묶는다, 3
   (32단 복원 나눗셈 — i64 의 64비트 제수 단 + 넘침 비트)을 위 칸부터(127~약 1,050), 128비트 제수는 몫 < 2^64 인 64단 복원 나눗셈
   (빌림 조합 8가지 조건 트리거가 맞는 뺄셈 사슬로 — 48~약 1,270). 상수 제수 < 2^32 는 i64 상수 제수 본문(이식판 a41d2ed `_cdiv`)을
   위 칸부터 세 번(40~231 — 칸 넷 한 번에 나누는 본문보다 한 번 페이로드가 절반 이하이고 i64 와 같이 쓴다), 그 이상 상수는
-  변수 제수 본문.
+  변수 제수 본문. **상수 제수가 2의 거듭제곱이면** 나눗셈 본문을 아예 안 쓴다 — 나머지는 비트 자르기 한 트리거(3),
+  몫은 칸 옮기기(32의 배수면 3) + i64 상수 시프트 본문을 겹친 창으로 (73~211). 상수 제수 전용 본문을 굽는 것 자체는
+  `CONST_DIVISOR = False` 로 끌 수 있다(용량 스위치 — 상수마다 약 47KB 가 사라지는 대신 실행 3배. COSTS.md 2026-09-20).
 - 10진: 39자리 중 10^38 ~ 10^19 자리는 `b·10^i`(b = 8·4·2·1) 복원 뺄셈을 빌림 조합마다 배타 트리거로(값 < 2c 불변식 — 한 단에서
   하나만 참), 남은 값(< 10^19)은 i64 10진 본문(`_lidec_body`)을 그대로 부른다. 값 < 2^64 면 윗 단을 건너뛴다.
   호출 7 / 실행 176~536 (본문 372 + i64 137).
@@ -1521,6 +1523,12 @@ def _udiv_fn(nd):
     return EUDFunc(i128_udiv4)
 
 
+#: 상수 제수(< 2^32)를 그 상수 전용 본문(i64 32단 본문 세 번)으로 구울지 (기본 True — 빠르다).
+#: 상수 종류마다 약 45KB 붙는다(그중 36KB 는 i64 본문 — `i64.CONST_DIVISOR` 와 따로 끈다).
+#: False 면 상수도 변수 제수 공유 본문으로 보낸다. 2의 거듭제곱 접기는 이 스위치와 무관하게 늘 한다(더 싸다).
+CONST_DIVISOR = True
+
+
 @functools.cache
 def _cdiv_fn(K):
     """상수 K (2 ≤ K < 2^32) 로 나누는 공유 본문 (x0..x3) → (q0..q3, r0..r3).
@@ -1563,6 +1571,82 @@ def _reset_junk():
     del _junk[:]
 
 
+def _mask_into4(dst, pa, s):
+    """dst ← a & (2^s − 1) (1 ≤ s ≤ 127). 칸 하나만 비트 자르기, 나머지는 그대로 복사거나 0."""
+    mw = _split4((1 << s) - 1)
+    src, cut = [], None
+    for i in range(4):
+        m, h = mw[i], pa[i]
+        if m == 0:
+            src.append(0)
+        elif m == M32:
+            src.append(h)
+        elif _isconst(h):
+            src.append(h & m)
+        else:
+            src.append(h)
+            cut = i
+    _assign4(dst, src)
+    if cut is not None:
+        RawTrigger(actions=dst[cut].SetNumberX(0, M32 ^ mw[cut]))
+
+
+def _shr_into4(dst, pa, s):
+    """dst ← a >> s (1 ≤ s ≤ 127). 칸 옮기기는 공짜, 남은 1~31비트는 i64 상수 시프트 본문을 겹친 창으로.
+
+    창 (b_i, b_{i+1}) 를 s%32 만큼 오른쪽으로 민 아래 칸 = 결과 칸 i (맨 위 창은 두 칸 다 쓴다) — 창 셋.
+    위 두 칸이 0 이면(값 < 2^64) 값 전체가 64비트라 창 하나로 끝난다 — `_cdiv_fn` 의 빠른 길과 같은 모양이라
+    작은 값에서 상수 제수 본문만큼 빠르다. i64 의 `_shk_fn("shr", n)` 본문을 나눠 쓰므로 128비트 쪽 본문이 없다.
+    """
+    sw, sb = divmod(s, 32)
+    b = tuple(pa[i + sw] if i + sw < 4 else 0 for i in range(4))
+    if sb == 0:
+        _assign4(dst, b)
+        return
+    # 칸이 엇갈려 겹치면(dst[2] is pa[0] 같은) 아래 칸부터 쓰는 순서가 깨진다 → 임시 칸으로
+    out = dst if (not _overlap(dst, pa) or _same(dst, pa)) else _new4()
+
+    def wide():
+        j = _junk8()[0]
+        _i64._shift_into("shr", out[0], j, (b[0], b[1]), sb)
+        _i64._shift_into("shr", out[1], j, (b[1], b[2]), sb)
+        _i64._shift_into("shr", out[2], out[3], (b[2], b[3]), sb)
+
+    def narrow():
+        _i64._shift_into("shr", out[0], out[1], (pa[0], pa[1]), s)  # s ≥ 64 면 i64 가 0 으로 접는다
+        SeqCompute([(out[2], SetTo, 0), (out[3], SetTo, 0)])
+
+    ks = [h for h in pa[2:] if _isconst(h)]
+    vs = [h for h in pa[2:] if not _isconst(h)]
+    if any(ks):  # 위 칸에 0 아닌 상수 — 늘 128비트
+        wide()
+    elif not vs:  # 위 두 칸이 상수 0 — 늘 64비트
+        narrow()
+    else:
+        if EUDIf()([h.Exactly(0) for h in vs]):
+            narrow()
+        if EUDElse()():
+            wide()
+        EUDEndIf()
+    if out is not dst:
+        _assign4(dst, out)
+
+
+def _pow2_into4(q, r, pa, s):
+    """q ← a >> s, r ← a & (2^s − 1) (제수 = 2^s, 1 ≤ s ≤ 127)."""
+    if q is None:
+        _mask_into4(r, pa, s)
+        return
+    if r is None:
+        _shr_into4(q, pa, s)
+        return
+    tq, tr = _new4(), _new4()
+    _mask_into4(tr, pa, s)
+    _shr_into4(tq, pa, s)
+    _assign4(q, tq)
+    _assign4(r, tr)
+
+
 def _divmod_into4(q, r, pa, pb):
     """q ← a // b, r ← a % b (부호 없음). q·r 는 변수 넷 또는 None(버림). a·b 와 겹쳐도 된다."""
     ka, kb = _const4(pa), _const4(pb)
@@ -1593,8 +1677,15 @@ def _divmod_into4(q, r, pa, pb):
             if r is not None:
                 _assign4(r, rv)
             return
+        if kb & (kb - 1) == 0:
+            # 2의 거듭제곱 = 시프트·비트 자르기. 상수 제수 본문(32단)을 굽지 않는다.
+            _pow2_into4(q, r, pa, kb.bit_length() - 1)
+            return
         if kb <= M32:
-            _cdiv_fn(kb)(*pa, ret=rets)
+            if CONST_DIVISOR:
+                _cdiv_fn(kb)(*pa, ret=rets)
+                return
+            _udiv_fn(1)(*pa, kb, ret=rets)  # 스위치가 꺼졌다 — 변수 제수 공유 본문으로
             return
         nd = 2 if kb <= M64 else 4
         _udiv_fn(nd)(*pa, *_split4(kb)[:nd], ret=rets)

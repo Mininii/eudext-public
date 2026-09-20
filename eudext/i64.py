@@ -2034,6 +2034,13 @@ def _cdiv64_emit(K, wl, wh, q0, end):
         steps[j] << (first if first is not None else t1)
 
 
+#: 상수 제수를 **그 상수 전용 32단 본문**으로 구울지 (기본 True — 빠르다).
+#: 상수 종류마다 본문이 하나씩 생겨 한 벌에 약 36KB 붙는다. False 로 두면 상수 제수도 변수 제수 공유 본문으로
+#: 보낸다 — 본문이 더 안 생기는 대신 실행이 몇 배 는다(`tools/size_report.py --off CONST_DIVISOR` 로 견준다).
+#: 빌드 코드를 내기 전에 바꾼다(이미 구운 본문은 되돌아가지 않는다). i128 쪽 스위치는 `i128.CONST_DIVISOR`.
+CONST_DIVISOR = True
+
+
 @functools.cache
 def _cdiv_fn(K, want):
     """상수 K (2 ≤ K < 2^64, 2의 거듭제곱 아님) 로 나누는 공유 본문. want: "q" | "r" | "qr".
@@ -2099,13 +2106,15 @@ def _divmod_into(q, r, pa, pb):
             _assign(*q, *tq)
             _assign(*r, *tr)
             return
-        want = ("q" if q is not None else "") + ("r" if r is not None else "")
-        if not want:
+        if CONST_DIVISOR:
+            want = ("q" if q is not None else "") + ("r" if r is not None else "")
+            if not want:
+                return
+            al, ah = pa
+            rets = (list(q) if q is not None else []) + (list(r) if r is not None else [])
+            _cdiv_fn(kb, want)(al, ah, ret=rets)
             return
-        al, ah = pa
-        rets = (list(q) if q is not None else []) + (list(r) if r is not None else [])
-        _cdiv_fn(kb, want)(al, ah, ret=rets)
-        return
+        pb = _split(kb)  # 스위치가 꺼졌다 — 상수도 변수 제수 공유 본문으로
     tmp = _scratch_rets()
     rets = (list(q) if q is not None else tmp[:2]) + (list(r) if r is not None else tmp[2:])
     _udiv_fn()(pa[0], pa[1], pb[0], pb[1], ret=rets)
