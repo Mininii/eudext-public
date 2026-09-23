@@ -29,6 +29,9 @@ epScript: `import eudext.mathx as mx;` → `const c, s = mx.lengthdir(r, a);`, `
   반올림 표가 달라서 **쓰지 않는다**(R4b C5).
 - 고정밀(`precise=True`, CtrigAsm LengthdirX): 표 칸 (l, k) = trunc(k·sin(l·90/Q °)) 를 파일 표(Db)로 싣고 |R| 의 하위
   15비트로 읽는다. **표 크기 (Q+1)×32768×4 바이트 — cycle 360 이면 11,927,552 바이트(11.9MB)**, 빌드 때 경고한다.
+- 반지름을 줄인 고정밀(`precise=bits`, 정수 1~14): 각 열의 앞 2^bits 칸만 싣는다(칸 값은 원본 표와 같다). |R| < 2^bits 이면
+  원본 고정밀과 **같은 값**, 그 밖이면 표 없는 lengthdir(아래 첫 줄의 식)로 계산한다. bits 13 이면 표 2,981,888 바이트.
+  표가 거의 압축되지 않아 freeze 블록 테이블(SC:R 한도 4MiB)을 넘기 쉬운 맵에서 쓴다 (Memory_2, 2026-09-24).
 
 ## 0 나눗셈 (DESIGN 7절 D4 권장안)
 
@@ -200,6 +203,9 @@ def _ld_py(r, a, cycle, precise):
         return _term_py(r, tbl[ci], cs), _term_py(r, tbl[si], ss)
     rr = _u32(r)
     neg = rr >= SIGN
+    bits = _pbits(precise)
+    if bits < 15 and (_u32(-rr) if neg else rr) >= (1 << bits):
+        return _ld_py(r, a, cycle, False)          # 줄인 표 밖 — 표 없는 길
     k = (_u32(-rr) if neg else rr) & 0x7FFF
     q = cycle // 4
     c = int(k * tables.cr_sin(ci * 90, q))
@@ -297,6 +303,22 @@ def _check_bool(fname, name, v):
     if not isinstance(v, bool):
         fail("%s: %s 는 True/False 여야 합니다 (%r)", fname, name, v)
     return v
+
+
+def _check_precise(fname, v):
+    """precise = False(표 없음) · True(원본 고정밀 표, 반지름 15비트) · 정수 1~15(표에 싣는 반지름 비트 수)."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, int) and 1 <= v <= 15:
+        return True if v == 15 else v
+    fail("%s: precise 는 True/False 또는 반지름 비트 수 1~15 여야 합니다 (%r)", fname, v)
+
+
+def _pbits(precise):
+    """precise 값 → 표 반지름 비트 수 (True = 15, False = 0)."""
+    if precise is True:
+        return 15
+    return int(precise) if precise else 0
 
 
 def _check_ret(fname, ret, n):
@@ -499,20 +521,34 @@ def _const_ld_fn(cycle, precise, t):
     """정규화한 상수 각 t 의 lengthdir 본문 (v → (cos, sin))."""
     cs, ss, si, ci = _quad(t, cycle)
     if precise:
-        base = EPD(_precise_db(cycle))
+        bits = _pbits(precise)
+        base = EPD(_precise_db(cycle, bits))
+        fb = _const_ld_fn(cycle, False, t) if bits < 15 else None
+
+        def table_part(v, neg, c, s):
+            f_dwread_epd(v + (base + (ci << bits)), ret=[c])
+            f_dwread_epd(v + (base + (si << bits)), ret=[s])
+            if ci != 0:
+                _emit_flip(neg, c, cs)
+            if si != 0:
+                _emit_flip(neg, s, ss)
 
         @EUDFunc
         def ld_p(v):
             c, s, neg = EUDVariable(), EUDVariable(), EUDVariable()
             RawTrigger(actions=neg.SetNumber(0))
             RawTrigger(conditions=v.AtLeast(SIGN), actions=[*_ineg(v), neg.SetNumber(1)])
-            RawTrigger(actions=v.SetNumberX(0, 0xFFFF8000))
-            f_dwread_epd(v + (base + (ci << 15)), ret=[c])
-            f_dwread_epd(v + (base + (si << 15)), ret=[s])
-            if ci != 0:
-                _emit_flip(neg, c, cs)
-            if si != 0:
-                _emit_flip(neg, s, ss)
+            if fb is None:
+                RawTrigger(actions=v.SetNumberX(0, 0xFFFF8000))
+                table_part(v, neg, c, s)
+                return c, s
+            if EUDIf()(v.AtLeast(1 << bits)):              # 줄인 표 밖 — 부호를 되돌려 표 없는 길
+                RawTrigger(conditions=neg.Exactly(1), actions=_ineg(v))
+                fc, fs = fb(v)
+                SeqCompute([(c, SetTo, fc), (s, SetTo, fs)])
+            if EUDElse()():
+                table_part(v, neg, c, s)
+            EUDEndIf()
             return c, s
 
         return ld_p
@@ -572,25 +608,27 @@ _precise_dbs = {}
 _precise_warned = set()
 
 
-def _precise_warn(cycle):
-    if cycle not in _precise_warned:
-        _precise_warned.add(cycle)
-        size = tables.precise_table_size(cycle)
+def _precise_warn(cycle, bits=15):
+    if (cycle, bits) not in _precise_warned:
+        _precise_warned.add((cycle, bits))
+        size = tables.precise_table_size(cycle, bits)
         warn(
-            "mathx: 고정밀 lengthdir(precise=True, cycle %d) 표를 싣습니다 — %d 바이트 (%.1fMB). "
-            "맵 용량에 주의하세요 (CtrigAsm LengthdirX 와 같은 표)",
+            "mathx: 고정밀 lengthdir(precise=%s, cycle %d) 표를 싣습니다 — %d 바이트 (%.1fMB). "
+            "맵 용량에 주의하세요 (CtrigAsm LengthdirX 와 같은 표%s)",
+            "True" if bits == 15 else bits,
             cycle,
             size,
             size / 1048576,
+            "" if bits == 15 else ", |R| < %d 칸만" % (1 << bits),
         )
 
 
-def _precise_db(cycle):
-    db = _precise_dbs.get(cycle)
+def _precise_db(cycle, bits=15):
+    db = _precise_dbs.get((cycle, bits))
     if db is None:
-        _precise_warn(cycle)
-        db = Db(tables.precise_table_bytes(cycle))
-        _precise_dbs[cycle] = db
+        _precise_warn(cycle, bits)
+        db = Db(tables.precise_table_bytes(cycle, bits))
+        _precise_dbs[(cycle, bits)] = db
     return db
 
 
@@ -616,8 +654,9 @@ class _Engine:
         q = self.cycle // 4
         st = {"loaded": EUDVariable(0), "flipc": Forward(), "flips": Forward()}
         if self.precise:
-            base = EPD(_precise_db(self.cycle))
-            st["basec"] = EUDVariable(base + (q << 15))  # 각 0: cos 색인 Q
+            bits = _pbits(self.precise)
+            base = EPD(_precise_db(self.cycle, bits))
+            st["basec"] = EUDVariable(base + (q << bits))  # 각 0: cos 색인 Q
             st["bases"] = EUDVariable(base)  # sin 색인 0
         else:
             st["tc"] = EUDVariable(0x10000)
@@ -657,9 +696,10 @@ class _Engine:
                 basec, bases = st["basec"], st["bases"]
                 # basec = Q − si: SC Subtract (Q ≥ si 가 보장되어 포화하지 않음, DESIGN 3.5-7)
                 SeqCompute([(bases, SetTo, th), (basec, SetTo, q), (basec, Subtract, th)])
-                bases <<= 15
-                basec <<= 15
-                base = EPD(_precise_db(cycle))
+                bits = _pbits(self.precise)
+                bases <<= bits
+                basec <<= bits
+                base = EPD(_precise_db(cycle, bits))
                 RawTrigger(actions=[bases.AddNumber(base), basec.AddNumber(base)])
                 return
             vc, vs = EUDVariable(), EUDVariable()
@@ -690,6 +730,9 @@ class _Engine:
         loaded, flipc, flips = st["loaded"], st["flipc"], st["flips"]
 
         if self.precise:
+            bits = _pbits(self.precise)
+            # 줄인 표 밖은 표 없는 엔진(따로 된 한 벌 — 준비한 각 상태가 섞이지 않게)
+            fb = _shared_engine(self.cycle, False, self.name + "_fb").ld_func() if bits < 15 else None
 
             @EUDFunc
             def ld_p(angle, v):
@@ -700,6 +743,18 @@ class _Engine:
                 c, s, neg = EUDVariable(), EUDVariable(), EUDVariable()
                 RawTrigger(actions=neg.SetNumber(0))
                 RawTrigger(conditions=v.AtLeast(SIGN), actions=[*_ineg(v), neg.SetNumber(1)])
+                if fb is not None:
+                    if EUDIf()(v.AtLeast(1 << bits)):
+                        RawTrigger(conditions=neg.Exactly(1), actions=_ineg(v))
+                        fc, fs = fb(angle, v)
+                        SeqCompute([(c, SetTo, fc), (s, SetTo, fs)])
+                    if EUDElse()():
+                        f_dwread_epd(st["basec"] + v, ret=[c])
+                        f_dwread_epd(st["bases"] + v, ret=[s])
+                        RawTrigger(conditions=flipc << neg.Exactly(1), actions=_ineg(c))
+                        RawTrigger(conditions=flips << neg.Exactly(1), actions=_ineg(s))
+                    EUDEndIf()
+                    return c, s
                 RawTrigger(actions=v.SetNumberX(0, 0xFFFF8000))
                 f_dwread_epd(st["basec"] + v, ret=[c])
                 f_dwread_epd(st["bases"] + v, ret=[s])
@@ -788,13 +843,13 @@ def f_lengthdir(r, a, cycle=360, precise=False, *, ret=None):
     """
     fname = "mathx.lengthdir"
     tables.check_cycle(cycle, fname)
-    _check_bool(fname, "precise", precise)
+    precise = _check_precise(fname, precise)
     ret = _check_ret(fname, ret, 2)
     rv = _val(r, fname, "r")
     av = _val(a, fname, "a")
     if _is_int(rv) and _is_int(av):
         if precise:
-            _precise_warn(cycle)  # 상수 접기는 표를 싣지 않지만, 변수를 넣는 순간 표가 실린다는 것을 미리 알린다
+            _precise_warn(cycle, _pbits(precise))  # 상수 접기는 표를 싣지 않지만, 변수를 넣는 순간 표가 실린다는 것을 미리 알린다
         return _const_out(_ld_py(rv, av, cycle, precise), ret, True)
     if _is_int(av):
         return _call(_const_ld_fn(cycle, precise, _norm(av, cycle)), (rv,), ret)
@@ -827,7 +882,7 @@ class Rotator:
     def __init__(self, angle=None, cycle=360, precise=False, own=False):
         fname = "mathx.Rotator"
         self.cycle = tables.check_cycle(cycle, fname)
-        self.precise = _check_bool(fname, "precise", precise)
+        self.precise = precise = _check_precise(fname, precise)
         self._engine = None
         self._angle = None
         self._const = None
@@ -975,7 +1030,7 @@ def f_rotate3d(x, y, xy=None, yz=None, zx=None, cycle=360, precise=False, own=Fa
     """
     fname = "mathx.rotate3d"
     tables.check_cycle(cycle, fname)
-    _check_bool(fname, "precise", precise)
+    precise = _check_precise(fname, precise)
     _check_bool(fname, "own", own)
     ret = _check_ret(fname, ret, 3)
     xv = _val(x, fname, "x")

@@ -139,15 +139,17 @@ def packed_sin_table(cycle):
     return tuple((t[i] + (t[q - i] << 16)) & 0xFFFFFFFF for i in range(q + 1))
 
 
-def precise_table_size(cycle):
-    """LengthdirX 표 바이트 수 = (Q+1) × 32768 × 4. cycle 360 → 11,927,552."""
+def precise_table_size(cycle, bits=15):
+    """LengthdirX 표 바이트 수 = (Q+1) × 2^bits × 4. cycle 360·bits 15(원본) → 11,927,552, bits 13 → 2,981,888."""
     check_cycle(cycle, "precise_table_size")
-    return (cycle // 4 + 1) * 32768 * 4
+    return (cycle // 4 + 1) * (1 << bits) * 4
 
 
 @functools.lru_cache(maxsize=4)
-def precise_table_bytes(cycle):
-    """LengthdirX 파일 표: 칸 (l, k) = trunc(k·sin(l·90/Q °)) (dword, 리틀 엔디언), l = 0..Q, k = 0..32767.
+def precise_table_bytes(cycle, bits=15):
+    """LengthdirX 파일 표: 칸 (l, k) = trunc(k·sin(l·90/Q °)) (dword, 리틀 엔디언), l = 0..Q, k = 0..2^bits−1.
+
+    bits 15 = 원본 표 그대로(k = 0..32767). bits 가 작으면 각 열의 앞 2^bits 칸만 — 값은 원본 표와 칸마다 같다.
 
     원본은 `k*math.sin(…)` 을 double 로 곱한 뒤 `bit32.band` 로 자른다 → 여기서도 double 곱(IEEE, 플랫폼 무관) 후 int().
     출처: CA:84481~84497
@@ -156,7 +158,7 @@ def precise_table_bytes(cycle):
     out = array.array("I")
     for l in range(q + 1):
         s = cr_sin(l * 90, q)
-        out.extend(int(k * s) for k in range(32768))
+        out.extend(int(k * s) for k in range(1 << bits))
     if out.itemsize != 4:
         raise AssertionError("array('I') 가 4바이트가 아닙니다")
     if array.array("I", [1]).tobytes() != b"\x01\x00\x00\x00":

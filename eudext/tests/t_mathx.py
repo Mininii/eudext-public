@@ -189,6 +189,21 @@ AK8 = (0, 1, 2, 3, 4, 5, 6, 7, -1, 9)
 RK = (0, 1, -1, 100, -100, 32767, -32767, -32768, 32768, 40000, -40000, 0x7FFFFFFF, 0x80000000)
 PK8 = (0, 1, 3, 6, -1)
 PR8 = (100, -32768, 40000, 0x80000000)
+PB = 6                                   # 줄인 고정밀 표 시험: 반지름 6비트(|r| < 64)만 표
+PB_EDGES = (0, 1, -1, 62, 63, 64, 65, -63, -64, -65, 100, -100, 32767, -32768, 40000, 0x7FFFFFFF, 0x80000000)
+
+
+def ld_bits(r, a, c, bits=PB):
+    """줄인 표의 정답: |r| < 2^bits 면 원본 고정밀, 아니면 표 없는 lengthdir."""
+    rr = r & M32
+    ab = (-rr) & M32 if rr >= 0x80000000 else rr
+    return R.lengthdir_precise(r, a, c) if ab < (1 << bits) else R.lengthdir(r, a, c)
+
+
+def rot_bits(x, y, a, c, bits=PB):
+    xc, xs = ld_bits(x, a, c, bits)
+    yc, ys = ld_bits(y, a, c, bits)
+    return {"x2": (xc - ys) & M32, "y2": (xs + yc) & M32}
 
 
 def build_ld(s):
@@ -268,6 +283,27 @@ def build_ld(s):
             t.out("c", cc)
             t.out("s", ss)
 
+    # 줄인 고정밀 표 (precise=비트 수): |r| < 2^PB 는 원본 표 값, 그 밖은 표 없는 값
+    for c in (8, 16):
+        @s.case("ldb_vv%d" % c)
+        def _(t, c=c):
+            cc, ss = mx.lengthdir(t.var("r"), t.var("a"), c, precise=PB)
+            t.out("c", cc)
+            t.out("s", ss)
+
+    for i, a in enumerate(PK8):
+        @s.case("ldb8_vk%d" % i)
+        def _(t, a=a):
+            cc, ss = mx.lengthdir(t.var("r"), a, 8, precise=PB)
+            t.out("c", cc)
+            t.out("s", ss)
+
+    @s.case("rotb8")
+    def _(t):
+        x2, y2 = mx.Rotator(t.var("a"), 8, precise=PB)(t.var("x"), t.var("y"))
+        t.out("x2", x2)
+        t.out("y2", y2)
+
     return batch_case(s, "ld_batch", 16, ("r", "a"), ("c", "s"), lambda t, a: mx.lengthdir(a[0], a[1]))
 
 
@@ -314,6 +350,15 @@ def run_ld(s, spec):
     for i, r in enumerate(PR8):
         diff_both(s, "ldp8_kv%d" % i, pair(lambda a, r=r: R.lengthdir_precise(r, a, 8)), {"a": tuple(range(-9, 10))},
                   {"a": g_cycle_angle(8)}, N(40, 400))
+    for c in (8, 16):
+        diff_both(s, "ldb_vv%d" % c, pair(lambda r, a, c=c: ld_bits(r, a, c)),
+                  {"r": PB_EDGES, "a": tuple(range(-c - 1, c + 2)) + (0x80000000,)},
+                  {"r": g_radius, "a": g_cycle_angle(c)}, N(500, 5000), seed=c)
+    for i, a in enumerate(PK8):
+        diff_both(s, "ldb8_vk%d" % i, pair(lambda r, a=a: ld_bits(r, a, 8)), {"r": PB_EDGES}, {"r": g_radius}, N(40, 400))
+    diff_both(s, "rotb8", lambda x, y, a: rot_bits(x, y, a, 8),
+              {"x": PB_EDGES, "y": (0, 63, 64, -64, 100), "a": tuple(range(-9, 10))},
+              {"x": g_radius, "y": g_radius, "a": g_cycle_angle(8)}, N(300, 3000))
     t0 = time.time()
     n = N(8000, 200000)
     ok, fail = run_batch(s, spec, lambda r, a: R.lengthdir(r, a), {"r": g_radius, "a": g_angle}, n, seed=360)
@@ -975,7 +1020,16 @@ def python_checks(ck):
         ck.raises("cycle %r" % (bad_c,), EudextError, mx.lengthdir, v, v, bad_c)
     ck.raises("atan2 cycle", EudextError, mx.atan2, v, v, 90 + 1)
     ck.raises("Rotator cycle", EudextError, mx.Rotator, 0, 10)
-    ck.raises("precise 1", EudextError, mx.lengthdir, v, v, 360, 1)
+    ck.raises("precise 16", EudextError, mx.lengthdir, v, v, 360, 16)
+    ck.raises("precise 0", EudextError, mx.lengthdir, v, v, 360, 0)
+    ck.raises("precise str", EudextError, mx.lengthdir, v, v, 360, "13")
+    # 줄인 표: 파이썬 정답(상수 접기)이 원본 표·표 없는 값과 맞물린다 — 360 · 13비트
+    for r, a in ((8191, 30), (-8191, 211), (8192, 30), (-8192, 30), (9000, 77), (2151, 359), (0x80000000, 5)):
+        ck.eq("precise 13 상수 (%d, %d)" % (r, a), tuple(u32(x) for x in mx.lengthdir(r, a, 360, precise=13)),
+              ld_bits(r, a, 360, 13))
+    ck.eq("precise 13 크기", mt.precise_table_size(360, 13), 91 * 8192 * 4)
+    ck.true("precise 13 표 = 원본 표 앞칸", mt.precise_table_bytes(8, 5) == b"".join(
+        mt.precise_table_bytes(8)[l * 32768 * 4:(l * 32768 + 32) * 4] for l in range(3)))
     ck.raises("div0", EudextError, mx.sdiv, v, v, "zero")
     ck.raises("ratio div0", EudextError, mx.ratio, v, 1, 2, "x")
     ck.raises("float", EudextError, mx.lengthdir, 1.5, v)
