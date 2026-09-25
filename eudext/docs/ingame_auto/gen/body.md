@@ -2,7 +2,7 @@
 
 만든 날 2026-09-18. 읽기·분석만 했고 저장소는 고치지 않았다.
 원본은 `MapSource\EUDPLIB_PORT_CHECKLIST.md`(1~5절)과 eudext `fix/shape-crmath:eudext/docs/INGAME_CHECKLIST.md`(160항목)이다.
-맵 소스는 eudext main 89c9539 `eudext/examples/*`, 이식판 문서(`ue_eud`, `theSeed_eud`, `MSF_Respect_V_eud`, `mem2_eud`, `mem1_eud` 의 `eud\*.md`)를 봤다.
+맵 소스는 eudext main d6b12b0 `eudext/examples/*`, 이식판 문서(`ue_eud`, `theSeed_eud`, `MSF_Respect_V_eud`, `mem2_eud`, `mem1_eud` 의 `eud\*.md`)를 봤다.
 항목마다 적은 내용(읽을 값·기대값·완료 표식·계측·위험)은 `classification.json` 에 있다. 이 문서는 그 요약이다.
 
 분류
